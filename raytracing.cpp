@@ -31,7 +31,7 @@ public:
 class Vector {
 public:
 	double x, y, z;
-	Vector(double x, double y, double z) {
+	Vector(double x = 0.0, double y = 0.0, double z = 0.0) {
 		this->x = x;
 		this->y = y;
 		this->z = z;
@@ -55,14 +55,14 @@ public:
 	{
 		return Vector(x - v.x, y - v.y, z - v.z);
 	}
-	double magnitude(const Vector &v)
+	double magnitude()
 	{
-		return sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
+		return sqrt((x * x) + (y * y) + (z * z));
 	}
-	Vector normal(const Vector &v)
+	Vector normalize()
 	{
-		double mag = magnitude(v);
-		return Vector(v.x / mag, v.y / mag, v.z / mag);
+		double mag = magnitude();
+		return Vector(x / mag, y / mag, z / mag);
 	}
 
 	/* a is the angle in degree, r is the axis to rotate against */
@@ -202,6 +202,7 @@ void printCamera(){
 	cameraPosition.open("camera.txt");
 	cameraPosition << l << endl;
 	cameraPosition << pos << endl;
+	cameraPosition << u << endl;
 	cameraPosition.close();
 }
 
@@ -471,6 +472,7 @@ public:
 	}
 };
 
+
 class Obj{
 public:
 	string name;
@@ -478,10 +480,22 @@ public:
 	double ambient, diffuse, specular, reflection, shininess;
 	bool intersect;
 };
+
 class Sphere : public Obj{
 public:
 	double radius;
-	Vector4 center;
+	Point center;
+	/*Sphere(double radius, Vector4 center){
+	this->radius = radius;
+	this->center = center;
+	}*/
+};
+
+
+class Sphere : public Obj{
+public:
+	double radius;
+	Point center;
 	/*Sphere(double radius, Vector4 center){
 		this->radius = radius;
 		this->center = center;
@@ -489,7 +503,7 @@ public:
 };
 class Pyramid : public Obj{
 public:
-	Vector4 lowestPoint;
+	Point lowestPoint;
 	double width;
 	double height;
 };
@@ -497,12 +511,43 @@ public:
 class Scene{
 public:
 	int levelRecursion;
-	int numPixel;
+	int height;
+	int width;
 	int numObj;
 	int numLightSrc;
 	vector<Obj> objects;
+	vector<Point> lightSources;
 };
 Scene s;
+
+void raytraceMain(){
+	ifstream sceneFileIn("camera.txt");	
+	Vector l, u;
+	Point eye;
+	if (sceneFileIn.is_open())
+	{
+		string line;
+		getline(sceneFileIn, line);	//look direction
+		stringstream(line) >> l.x >> l.y >> l.z;
+		getline(sceneFileIn, line); //eye position
+		stringstream(line) >> eye.x >> eye.y >> eye.z;
+		getline(sceneFileIn, line); //up direction
+		stringstream(line) >> u.x >> u.y >> u.z;
+		sceneFileIn.close();
+	}
+
+
+	// Compute viewing matrix that maps a
+	// screen coordinate to a ray direction
+	Vector Du = l.cross(u).normalize();
+	Vector Dv = l.cross(Du).normalize();
+	double fov = 45;
+	float fl = (float)(s.width / (2 * tan((0.5*fov)*pi / 180.0)));
+	Vector Vp = l.normalize();
+	Vp.x = Vp.x*fl - 0.5f*(s.width*Du.x + s.height*Dv.x);
+	Vp.y = Vp.y*fl - 0.5f*(s.width*Du.y + s.height*Dv.y);
+	Vp.z = Vp.z*fl - 0.5f*(s.width*Du.z + s.height*Dv.z);
+}
 
 void inputSceneParameters(){
 	ifstream sceneFileIn("description.txt");
@@ -513,7 +558,8 @@ void inputSceneParameters(){
 		getline(sceneFileIn, line);		//Line 1: level of recursion
 		stringstream(line) >> s.levelRecursion;
 		getline(sceneFileIn, line);		//Line 2: number of pixels along both axes
-		stringstream(line) >> s.numPixel;
+		stringstream(line) >> s.height;
+		s.width = s.height;
 		getline(sceneFileIn, line);		//Line 3 : blank
 		getline(sceneFileIn, line);		//Line 4 : number of objects
 		stringstream(line) >> s.numObj;
@@ -522,41 +568,58 @@ void inputSceneParameters(){
 		{
 			getline(sceneFileIn, line);	//0: object name
 			if (line == "sphere"){
-				Sphere sphere;
+				Sphere o;
+				o.name = "sphere";
 				getline(sceneFileIn, line);	//1. center
-				stringstream(line) >> sphere.center.x >> sphere.center.y >> sphere.center.z;
+				stringstream(line) >> o.center.x >> o.center.y >> o.center.z;
 				getline(sceneFileIn, line);	//2. radius		
-				stringstream(line) >> sphere.radius;
-				
-				s.objects.push_back(sphere);
+				stringstream(line) >> o.radius;
+				getline(sceneFileIn, line);	//-3: color
+				stringstream(line) >> o.color.r >> o.color.g >> o.color.b;
+				getline(sceneFileIn, line);	//-2: ambient diffuse specular reflection coefficient
+				stringstream(line) >> o.ambient >> o.diffuse >> o.specular >> o.reflection;
+				getline(sceneFileIn, line);	//-1: shininess
+				stringstream(line) >> o.shininess;
+				s.objects.push_back(o);
 			}else if (line == "pyramid"){
+				Pyramid o;
+				o.name = "pyramid";
 				getline(sceneFileIn, line);	//1. lowest point co-ordinate
+				stringstream(line) >> o.lowestPoint.x >> o.lowestPoint.y >> o.lowestPoint.z;
 				getline(sceneFileIn, line);	//2. width, height
-
-				Pyramid pyramid;
-				s.objects.push_back(pyramid);
+				stringstream(line) >> o.width >> o.height;
+				getline(sceneFileIn, line);	//-3: color
+				stringstream(line) >> o.color.r >> o.color.g >> o.color.b;
+				getline(sceneFileIn, line);	//-2: ambient diffuse specular reflection coefficient
+				stringstream(line) >> o.ambient >> o.diffuse >> o.specular >> o.reflection;
+				getline(sceneFileIn, line);	//-1: shininess
+				stringstream(line) >> o.shininess;
+				s.objects.push_back(o);
 			}
-			getline(sceneFileIn, line);	//-3: color
-			getline(sceneFileIn, line);	//-2: ambient diffuse specular reflection coefficient
-			getline(sceneFileIn, line);	//-1: shininess
+			getline(sceneFileIn, line);	//blank
 		}
-
-		//stringstream(line) >> s.fovY >> s.aspectRatio >> s.near >> s.far;
-		getline(sceneFileIn, line);		//Line 5 : screen_width screen_height
-		//stringstream(line) >> s.screenWidth >> s.screenHeight;
-		getline(sceneFileIn, line);		//Line 6 : r g b
-		//stringstream(line) >> s.backColor.r >> s.backColor.g >> s.backColor.b;
+		getline(sceneFileIn, line); //number of light sources	
+		stringstream(line) >> s.numLightSrc;
+		for (int i = 0; i < s.numLightSrc; i++)
+		{
+			Point p;
+			getline(sceneFileIn, line); //pos
+			stringstream(line) >> p.x >> p.y >> p.z;
+			s.lightSources.push_back(p);
+		}
 		sceneFileIn.close();
 	}
 }
 
 int main(int argc, char **argv){
+	inputSceneParameters();
+
 	glutInit(&argc, argv);
-	glutInitWindowSize(1000, 1000);
+	glutInitWindowSize(800, 800);
 	glutInitWindowPosition(0, 0);
 	glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGB);	//Depth, Double buffer, RGB color
 
-	glutCreateWindow("Assignment 1(a)");
+	glutCreateWindow("Raytracing");
 
 	init();
 
@@ -570,6 +633,8 @@ int main(int argc, char **argv){
 	glutMouseFunc(mouseListener);
 
 	glutMainLoop();		//The main loop of OpenGL
+	
+
 
 	return 0;
 }
