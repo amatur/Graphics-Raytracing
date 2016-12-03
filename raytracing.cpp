@@ -479,6 +479,8 @@ public:
 	Color color;
 	double ambient, diffuse, specular, reflection, shininess;
 	bool intersect;
+	bool intersect(Ray &ray) {
+	}
 };
 
 class Sphere : public Obj{
@@ -492,6 +494,36 @@ public:
 };
 
 
+class Ray {
+public:
+	double MAX_T = 99999;
+	Point origin;
+	Vector direction;
+	double t;
+	Obj intersectedObject;
+
+	Ray(Point eye, Vector dir) {
+		origin = eye;
+		direction = dir.normalize();
+	}
+
+	bool trace(Vector objects) {
+		vector<Obj> objList = s.objects;
+		t = MAX_T;
+		bool foundTraced = false;
+		for (vector<Obj>::iterator it = objList.begin(); it != objList.end(); ++it){
+			Obj object = *it;
+			foundTraced = intersectedObject.intersect(*this);
+		}
+		return (foundTraced);
+	}
+	friend ostream &operator<<(ostream &output, const Ray &ray)
+	{
+		output << "ray origin = " << ray.origin << "  direction = " << ray.direction << "  t = " << ray.t;
+		return output;
+	}
+};
+
 class Sphere : public Obj{
 public:
 	double radius;
@@ -500,6 +532,38 @@ public:
 		this->radius = radius;
 		this->center = center;
 	}*/	
+
+
+	bool intersect(Ray &ray) {
+		//float dx = center.x - ray.origin.x;
+		//float dy = center.y - ray.origin.y;
+		//float dz = center.z - ray.origin.z;
+		Vector d = center - ray.origin;
+		double v = ray.direction.dot(d);
+
+		// Do the following quick check to see if there is even a chance
+		// that an intersection here might be closer than a previous one
+		if (v - radius > ray.t){
+			return false;
+		}
+
+		// Test if the ray actually intersects the sphere
+		double t = radius * radius + v * v - d.x * d.x - d.y * d.y - d.z * d.z;
+		if (t < 0){
+			return false;
+		}
+
+		// Test if the intersection is in the positive
+		// ray direction and it is the closest so far
+		t = v - ((double)sqrt(t));
+		if ((t > ray.t) || (t < 0)){
+			return false;
+		}
+
+		ray.t = t;
+		ray.intersectedObject = *this;
+		return true;
+	}
 };
 class Pyramid : public Obj{
 public:
@@ -519,6 +583,18 @@ public:
 	vector<Point> lightSources;
 };
 Scene s;
+
+void render(int i, int j) {
+	//Vector dir = Vector(i*Du.x + j*Dv.x + Vp.x,	i*Du.y + j*Dv.y + Vp.y,	i*Du.z + j*Dv.z + Vp.z);
+	//Ray ray = new Ray(eye, dir);
+	//if (ray.trace(objectList)) {
+	//	gc.setColor(ray.Shade(lightList, objectList, background));
+	//}
+	//else {
+	//	gc.setColor(background);
+	//}
+	//gc.drawLine(i, j, i, j);        // oh well, it works.
+}
 
 void raytraceMain(){
 	ifstream sceneFileIn("camera.txt");	
@@ -547,6 +623,14 @@ void raytraceMain(){
 	Vp.x = Vp.x*fl - 0.5f*(s.width*Du.x + s.height*Dv.x);
 	Vp.y = Vp.y*fl - 0.5f*(s.width*Du.y + s.height*Dv.y);
 	Vp.z = Vp.z*fl - 0.5f*(s.width*Du.z + s.height*Dv.z);
+
+	for (int j = 0; j < s.height; j++) {
+		//showStatus("Scanline " + j);
+		for (int i = 0; i < s.width; i++) {
+			render(i, j);
+		}
+		//g.drawImage(screen, 0, 0, this);        // doing this less often speed things up a bit
+	}
 }
 
 void inputSceneParameters(){
