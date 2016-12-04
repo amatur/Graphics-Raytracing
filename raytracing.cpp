@@ -48,6 +48,11 @@ int compare(double v1, double v2, double e = 0.00001){
 class Color{
 public:
 	double r, g, b;
+	Color(double r = 0.0, double g = 0.0, double b = 0.0) {
+		this->r = r;
+		this->g = g;
+		this->b = b;
+	}
 	friend ostream &operator<<(ostream &output, const Color &col)
 	{
 		output << "Color (" << col.r << "\t " << col.g << "\t " << col.b << ")";
@@ -262,9 +267,11 @@ public:
 
 	Intersection intersection;
 
-	Ray(Point& eye, Vector& dir) {
+	Ray(Point eye, Vector dir, Color col) {
 		origin = eye;
 		direction = dir.normalize();
+		intersection.col = col;
+		intersection.t = 99999999;
 	}
 
 	friend ostream &operator<<(ostream &output, const Ray &ray)
@@ -297,16 +304,20 @@ public:
 		// for plane: (p - pO).n = 0 
 
 		// assuming vectors are all normalized
-		assert(compare(l.magnitude(), 1) == 0);
+		assert(compare(ray.direction.magnitude(), 1) == 0);
 		assert(compare(n.magnitude(), 1) == 0);
 
-		double denom = n.dot(l);
+
+		double denom = n.dot(ray.direction);
 		// if dot product is 0 then no intersection
-		if (denom > 1e-6) {
+		if (abs(denom) > 1e-6) {
 			Vector diff = pO - ray.origin;
 			double t = diff.dot(n) / denom;
+			//double t = -ray.direction.z / pos.z;
 			if (t >= 0 && t <= ray.intersection.t){
 				ray.intersection.t = t;
+				ray.intersection.col = Color(0, 1.0, 0);
+				return true;
 				//ray.intersection.obj = *this;
 			}
 		}
@@ -329,9 +340,9 @@ public:
 
 		// Do the following quick check to see if there is even a chance
 		// that an intersection here might be closer than a previous one
-		if (v - radius > ray.intersection.t){
-			return false;
-		}
+		//if (v - radius > ray.intersection.t){
+		//	return false;
+		//}
 
 		// Test if the ray actually intersects the sphere
 		double t = radius * radius + v * v - d.x * d.x - d.y * d.y - d.z * d.z;
@@ -374,25 +385,30 @@ public:
 	vector<Pyramid> pyramids;
 	Board checkerboard;
 	vector<Point> lightSources;
-	Color backColor;		
+	Color backColor;
 };
 Scene s;
 
 
 bool trace(Ray &r) {
-	double MAX_T = 99999;
+	double MAX_T = 9999999999999;
 	r.intersection.t = MAX_T;
 	bool foundTraced = false;
+	
 	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
 		Sphere object = *it;
 		if (object.intersect(r) == true){
 			foundTraced = true;
 		}
-			
+
+	}
+	Board object = s.checkerboard;
+	if (object.intersect(r) == true){
+		foundTraced = true;
 	}
 	/*for (vector<Pyramid>::iterator it = s.pyramids.begin(); it != s.pyramids.end(); ++it){
-		Pyramid object = *it;
-		foundTraced = object.intersect(r);
+	Pyramid object = *it;
+	foundTraced = object.intersect(r);
 	}
 	Board object = s.checkerboard;
 	foundTraced = object.intersect(r);*/
@@ -654,7 +670,7 @@ void init(){
 	glLoadIdentity();
 
 	//give PERSPECTIVE parameters
-	gluPerspective(80, 1, 1, 1000.0);
+	gluPerspective(90, 1, 1, 1000.0);
 	//field of view in the Y (vertically)
 	//aspect ratio that determines the field of view in the X direction (horizontally)
 	//near distance
@@ -701,7 +717,7 @@ void raytraceMain(){
 	Vector Du = l.cross(u).normalize();
 	Vector Dv = l.cross(Du).normalize();
 	double fov = 90;
-	float fl = (float)(s.width / (2 * tan((0.5*fov)*pi / 180.0)));
+	double fl = (double)(s.width / (2 * tan((0.5*fov)*pi / 180.0)));
 	Vector Vp = l.normalize();
 	Vp.x = Vp.x*fl - 0.5f*(s.width*Du.x + s.height*Dv.x);
 	Vp.y = Vp.y*fl - 0.5f*(s.width*Du.y + s.height*Dv.y);
@@ -712,18 +728,20 @@ void raytraceMain(){
 		for (int i = 0; i < s.width; i++) {
 			//render(i, j);
 			Vector dir = Vector(i*Du.x + j*Dv.x + Vp.x, i*Du.y + j*Dv.y + Vp.y, i*Du.z + j*Dv.z + Vp.z);
-			Ray ray(eye, dir);
-			if (trace(ray)) {
-				//gc.setColor(ray.Shade(lightList, objectList, background));
-				//ulta kortesi
-				//image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
-				//image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
-				pixelBuffer[j][i] = ray.intersection.col;
-			}
-			else {
-				//gc.setColor(background);
-				pixelBuffer[i][j] = s.backColor;
-			}
+			Ray ray(eye, dir, s.backColor);
+			trace(ray);
+			pixelBuffer[j][i] = ray.intersection.col;
+			//if (trace(ray) == true) {
+			//	//gc.setColor(ray.Shade(lightList, objectList, background));
+			//	//ulta kortesi
+			//	//image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
+			//	//image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
+			//	
+			//}
+			//else {
+			//	//gc.setColor(background);
+			//	pixelBuffer[i][j] = s.backColor;
+			//}
 			//gc.drawLine(i, j, i, j);        // oh well, it works.
 		}
 		//g.drawImage(screen, 0, 0, this);        // doing this less often speed things up a bit
@@ -739,9 +757,12 @@ void raytraceMain(){
 		for (int j = 0; j < columns; j++)
 		{
 			unsigned char r, g, b;
-			r = (unsigned char) (pixelBuffer[i][j].r * 255);
-			g = (unsigned char) (pixelBuffer[i][j].g * 255);
-			b = (unsigned char) (pixelBuffer[i][j].b * 255);
+			r = (unsigned char)(pixelBuffer[i][j].r * 255);
+			g = (unsigned char)(pixelBuffer[i][j].g * 255);
+			b = (unsigned char)(pixelBuffer[i][j].b * 255);
+			if (r > 255) r = 255;
+			if (g > 255) g = 255;
+			if (b > 255) b = 255;
 
 			image.set_pixel(j, i, r, g, b);
 		}
@@ -820,6 +841,8 @@ void inputSceneParameters(){
 	s.backColor.g = 0;
 	s.backColor.b = 0;
 
+	s.checkerboard.n = Vector(0.0, 0.0, -1.0);
+	s.checkerboard.pO = Point(1.0, 1.0, 0.0);
 
 }
 
