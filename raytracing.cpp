@@ -12,10 +12,10 @@
 #include <assert.h>
 #include "bitmap_image.hpp"
 using namespace std;
-void raytraceMain();
 
 #define pi (2*acos(0.0))
-bitmap_image image;
+
+/** -------- Epsilon check ------------ **/
 double removeNegZero(double theFloat, int precision)
 {
 	if ((theFloat < 0.0f) &&
@@ -44,21 +44,6 @@ int compare(double v1, double v2, double e = 0.00001){
 	}
 	return -999;
 }
-
-class Color{
-public:
-	double r, g, b;
-	Color(double r = 0.0, double g = 0.0, double b = 0.0) {
-		this->r = r;
-		this->g = g;
-		this->b = b;
-	}
-	friend ostream &operator<<(ostream &output, const Color &col)
-	{
-		output << "Color (" << col.r << "\t " << col.g << "\t " << col.b << ")";
-		return output;
-	}
-};
 
 class Vector {
 public:
@@ -123,7 +108,6 @@ public:
 		return output;
 	}
 };
-
 class Point {
 public:
 	double x, y, z;
@@ -153,124 +137,54 @@ public:
 		return output;
 	}
 };
-// -------------------------------------------- //
 
-class Vector4 {
-public:
-	double x, y, z, w;
-	Vector4(double x = 0.0, double y = 0.0, double z = 0.0, double w = 0.0) {
-		this->x = x;
-		this->y = y;
-		this->z = z;
-		this->w = w;
-	}
-
-	Vector4(Vector v) {
-		this->x = v.x;
-		this->y = v.y;
-		this->z = v.z;
-		this->w = 0;
-	}
-
-	friend Vector4 operator*(double num, Vector4 const &vec)
-	{
-		return Vector4(vec.x * num, vec.y * num, vec.z * num);
-	}
-
-	Vector4 operator*(const double& scalar) const
-	{
-		return Vector4(x*scalar, y*scalar, z*scalar, w*scalar);
-	}
-	Vector4 operator+(const Vector4 &v) const
-	{
-		return Vector4(x + v.x, y + v.y, z + v.z, w + v.w);
-	}
-	Vector4 operator-(const Vector4 &v) const
-	{
-		return Vector4(x - v.x, y - v.y, z - v.z, w - v.w);
-	}
-
-	double dot(const Vector4 &vec) const
-	{
-		return x * vec.x + y * vec.y + z * vec.z + w * vec.w;
-	}
-
-	double operator*(const Vector4 &vec) const
-	{
-		return x * vec.x + y * vec.y + z * vec.z + w * vec.w;
-	}
-
-	friend ostream &operator<<(ostream &output, const Vector4 &vec)
-	{
-		output << "(" << vec.x << "\t " << vec.y << "\t " << vec.z << "\t " << vec.w << ")";
-		return output;
-	}
-
-	Vector4 normalize() const
-	{
-		double ax, ay, az, aw;
-		if (w != 0){
-			ax = x / w;
-			ay = y / w;
-			az = z / w;
-			aw = 1;
-			return Vector4(ax, ay, az, aw);
-		}
-		else{
-			return Vector4(x, y, z, w);
-		}
-
-	}
-
-	Point point(){
-		assert(w == 1);
-		return Point(x, y, z);
-	}
-
-	Vector vector(){
-		assert(w == 0);
-		return Vector(x, y, z);
-	}
-};
-
-
-/*scene related*/
-double cameraHeight;
-double cameraAngle;
+/** -------- CAMERA CONTROL related ------------ **/
 int drawgrid;
 int drawaxes;
-double angle;
-
-/** ---- CAMERA CONTROL related ---- **/
-
 /* speed */
 double ROTATE_SPEED = 3; // angle in degree
-
 /* position and up, right, look direction */
-Point pos(100, 100, 0);
-Vector u(0, 0, 1), r(-1 / sqrt(2.0), 1 / sqrt(2.0), 0), l(-1 / sqrt(2.0), -1 / sqrt(2.0), 0);
+//Point pos(100, 100, 0);
+//Vector u(0, 0, 1), r(-1 / sqrt(2.0), 1 / sqrt(2.0), 0), l(-1 / sqrt(2.0), -1 / sqrt(2.0), 0);
+Point pos(100, 100, 2);
+Vector u(0, 0, 1), l(-1 / sqrt(2.0), -1 / sqrt(2.0), 0), r(-1 / sqrt(2.0), 1 / sqrt(2.0), 0);
 // -------------------------------------------- //
 
+/** ---------- RAY TRACE related -------------- **/
+bitmap_image image;
+void raytraceMain();
+// -------------------------------------------- //
 
-
+class Color{
+public:
+	double r, g, b;
+	Color(double r = 0.0, double g = 0.0, double b = 0.0) {
+		this->r = r;
+		this->g = g;
+		this->b = b;
+	}
+	friend ostream &operator<<(ostream &output, const Color &col)
+	{
+		output << col.r << " " << col.g << " " << col.b;
+		return output;
+	}
+};
 class Intersection{
 public:
 	Vector normal;
 	Color col;
 	double t;
 };
-
 class Ray {
 public:
 	Point origin;
 	Vector direction;
-
 	Intersection intersection;
 
-	Ray(Point eye, Vector dir, Color col) {
+	Ray(Point eye, Vector dir, Color backColor) {
 		origin = eye;
 		direction = dir.normalize();
-		intersection.col = col;
+		intersection.col = backColor;
 		intersection.t = 99999;
 	}
 
@@ -290,8 +204,6 @@ public:
 		return false;
 	}
 };
-
-
 class Board : public Obj{
 public:
 	//plane is in point normal form
@@ -319,9 +231,6 @@ public:
 				Point iP = ray.origin + (ray.direction * t);
 				int x = iP.x;
 				int y = iP.y;
-				if (x % 10){
-					ray.intersection.col = Color(0, 0, 0);
-				}
 				if (abs(x % 10) >= 5 && abs(y % 10) >= 5 || abs(x % 10)  < 5 && abs(y % 10)  < 5){
 					ray.intersection.col = Color(0, 0, 0);
 				}
@@ -337,7 +246,6 @@ public:
 		return false;
 	}
 };
-
 class Sphere : public Obj{
 public:
 	double radius;
@@ -373,15 +281,143 @@ public:
 		return true;
 	}
 };
+class Triangle : public Obj{
+public:
+	Point p0, p1, p2;
+	Triangle(Point p0, Point p1, Point p2, Color c){
+		this->p0 = p0;
+		this->p1 = p1;
+		this->p2 = p2;
+		this->color = c;
+	}
+	Triangle(){
+	}
+	bool intersect(Ray& ray)
+	{
+
+		//Vector e0 = p1 - p0;
+		//Vector e1 = p2 - p0;
+		//Vector N = e0.cross(e1);
+		//N = N.normalize();
+		//
+		//// implementing the single/double sided feature
+		//if (ray.direction.dot(N) > 0)
+		//	return false; // back-facing surface
+
+
+
+		// compute plane's normal
+		Vector p01 = p1 - p0;
+		Vector p02 = p2 - p0;
+		// no need to normalize
+		Vector N = p01.cross(p02); // N
+		double area2 = N.magnitude();
+
+		// Step 1: finding P
+		// check if ray and plane are parallel ?
+		double NdotRayDirection = N.dot(ray.direction);
+		double kEpsilon = 1e-6;
+		if (fabs(NdotRayDirection) < kEpsilon) // almost 0
+			return false; // they are parallel so they don't intersect !
+
+		// compute d parameter using equation 2
+		double d = N.dot(p0 - Point(0, 0, 0));
+
+		// compute t (equation 3)
+		double t = (N.dot(ray.origin - Point(0, 0, 0)) + d) / NdotRayDirection;
+		// check if the triangle is in behind the ray
+		if (t < 0) return false; // the triangle is behind
+
+		// compute the intersection point using equation 1
+		Point P = ray.origin + t * ray.direction;
+
+		// Step 2: inside-outside test
+		Vector C; // vector perpendicular to triangle's plane
+
+		// edge 0
+		Vector edge0 = p1 - p0;
+		Vector Pp0 = P - p0;
+		C = edge0.cross(Pp0);
+		if (N.dot(C) < 0) return false; // P is on the right side
+
+		// edge 1
+		Vector edge1 = p2 - p1;
+		Vector vp1 = P - p1;
+		C = edge1.cross(vp1);
+		if (N.dot(C) < 0) return false; // P is on the right side
+
+		// edge 2
+		Vector edge2 = p0 - p2;
+		Vector vp2 = P - p2;
+		C = edge2.cross(vp2);
+		if (N.dot(C) < 0) return false; // P is on the right side;
+
+		return true; // this ray hits the triangle
+	}
+};
+class PyramidBase : public Obj
+{
+public:
+	//plane is in point normal form
+	Vector n;	//normal (unit)
+	Point pO;	//point on plane (lowest point)
+	double width;
+	PyramidBase(){}
+	PyramidBase(Point pO, double width, Color c){
+		this->n = Vector(0.0, 0.0, -1.0);
+		this->pO = pO;
+		this->color = c;
+		this->width = width;
+	}
+	bool intersect(Ray& ray)
+	{
+		// assuming vectors are all normalized
+		assert(compare(ray.direction.magnitude(), 1) == 0);
+		assert(compare(n.magnitude(), 1) == 0);
+
+		double denom = n.dot(ray.direction);
+		// if dot product is 0 then no intersection
+		if (abs(denom) > 1e-6) {
+			Vector diff = pO - ray.origin;
+			double t = diff.dot(n) / denom;
+			if (t >= 0 && t <= ray.intersection.t){
+				ray.intersection.t = t;
+				Point iP = ray.origin + (ray.direction * t);
+				int x = iP.x;
+				int y = iP.y;
+				if (x >= pO.x && x <= pO.x + width && y >= pO.y && y <= pO.y + width){
+					ray.intersection.col = this->color;
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+};
 class Pyramid : public Obj{
 public:
 	Point lowestPoint;
 	double width;
 	double height;
+	Triangle t[4];
+	PyramidBase base;
+	Pyramid(){}
+	Pyramid(Point lp, double w, double h){
+		lowestPoint = lp;
+		width = w;
+		height = h;
+		Point p0(lp.x + 0, lp.y + 0, lp.z + 0); //front left vertex
+		Point p1(lp.x + w, lp.y + 0, lp.z + 0); //front right vertex
+		Point p2(lp.x + w, lp.y + w, lp.z + 0); //back right vertex
+		Point p3(lp.x + 0, lp.y + w, lp.z + 0);//back left vertex
+		Point top(lp.x + w/2.0, lp.y + w/2.0, lp.z + h); //top vertex
+		t[0] = Triangle(p0, p1, top, color);
+		t[1] = Triangle(p1, p2, top, color);
+		t[2] = Triangle(p2, p3, top, color);
+		t[3] = Triangle(p3, p0, top, color);
+		base = PyramidBase(lp, w, color);
+	}
 };
-
-
-
 
 class Scene{
 public:
@@ -398,7 +434,6 @@ public:
 	Color backColor;
 };
 Scene s;
-
 
 bool trace(Ray &r) {
 	//double MAX_T = 9999999999999;
@@ -426,10 +461,6 @@ bool trace(Ray &r) {
 	return (foundTraced);
 }
 
-
-
-
-
 void drawAxes()
 {
 	if (drawaxes == 1)
@@ -449,8 +480,6 @@ void drawAxes()
 		}glEnd();
 	}
 }
-
-
 void drawGrid()
 {
 	int i;
@@ -474,7 +503,6 @@ void drawGrid()
 		}glEnd();
 	}
 }
-
 void drawPyramid(){
 		glBegin(GL_TRIANGLES);
 		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(0.0f, 1.f, 0.0f);
@@ -496,18 +524,17 @@ void drawPyramid(){
 
 		glEnd();
 }
+void drawScene(){
+	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
+		Sphere object = *it;
+		glPushMatrix(); {
+			glColor3f(object.color.r, object.color.g, object.color.b);
+			glTranslatef(object.center.x, object.center.y, object.center.z); //move to axis center
+			glutSolidSphere(object.radius, 100, 100);
+		}
+		glPopMatrix();
 
-void myDraw(){
-	//for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
-	//	Sphere object = *it;
-	//	glPushMatrix(); {
-	//		glColor3f(object.color.r, object.color.g, object.color.b);
-	//		glTranslatef(object.center.x, object.center.y, object.center.z); //move to axis center
-	//		glutSolidSphere(object.radius, 100, 100);
-	//	}
-	//	glPopMatrix();
-
-	//}
+	}
 
 }
 
@@ -570,8 +597,6 @@ void keyboardListener(unsigned char key, int x, int y){
 		break;
 	}
 }
-
-
 void specialKeyListener(int key, int x, int y){
 	switch (key){
 
@@ -606,8 +631,6 @@ void specialKeyListener(int key, int x, int y){
 		break;
 	}
 }
-
-
 void mouseListener(int button, int state, int x, int y){	//x, y is the x-y of the screen (2D)
 	switch (button){
 	case GLUT_LEFT_BUTTON:
@@ -629,10 +652,7 @@ void mouseListener(int button, int state, int x, int y){	//x, y is the x-y of th
 	}
 }
 
-
-
 void display(){
-
 	//clear the display
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glClearColor(0, 0, 0, 0);	//color black
@@ -651,15 +671,6 @@ void display(){
 	//1. where is the camera (viewer)?
 	//2. where is the camera looking?
 	//3. Which direction is the camera's UP direction?
-
-	//gluLookAt(100,100,100,	0,0,0,	0,0,1);
-
-	//gluLookAt(200 * cos(cameraAngle), 200 * sin(cameraAngle), cameraHeight, 0, 0, 0, 0, 0, 1);
-	//gluLookAt(0,0,70,	0,0,0,	0,1,1);
-
-	// for fully controllable camera
-
-
 	gluLookAt(pos.x, pos.y, pos.z, pos.x + l.x, pos.y + l.y, pos.z + l.z, u.x, u.y, u.z);
 
 	//again select MODEL-VIEW
@@ -672,17 +683,14 @@ void display(){
 	//add objects	
 	drawAxes();
 	drawGrid();
-	myDraw();
+	drawScene();
 	//ADD this line in the end --- if you use double buffer (i.e. GL_DOUBLE)
 	glutSwapBuffers();
 }
-
-
 void animate(){
 	//codes for any changes in Models, Camera
 	glutPostRedisplay();
 }
-
 void init(){
 	//codes for initialization
 	drawgrid = 1;
@@ -706,99 +714,6 @@ void init(){
 	//aspect ratio that determines the field of view in the X direction (horizontally)
 	//near distance
 	//far distance
-}
-
-
-
-void raytraceMain(){
-	int rows = s.height;
-	int columns = s.width;
-	Color** pixelBuffer;
-	pixelBuffer = new Color*[rows];
-	for (int j = 0; j < rows; j++)
-	{
-		pixelBuffer[j] = new Color[columns];
-	}
-
-	/*for (int i = 0; i < rows; i++)
-	{
-	for (int j = 0; j < columns; j++)
-	{
-	pixelBuffer[i][j] = s.backColor;
-	}
-	}*/
-	ifstream sceneFileIn("camera.txt");
-	Vector l, u;
-	Point eye;
-	if (sceneFileIn.is_open())
-	{
-		string line;
-		getline(sceneFileIn, line);	//look direction
-		stringstream(line) >> l.x >> l.y >> l.z;
-		getline(sceneFileIn, line); //eye position
-		stringstream(line) >> eye.x >> eye.y >> eye.z;
-		getline(sceneFileIn, line); //up direction
-		stringstream(line) >> u.x >> u.y >> u.z;
-		sceneFileIn.close();
-	}
-
-
-	// Compute viewing matrix that maps a
-	// screen coordinate to a ray direction
-	Vector Du = l.cross(u).normalize();
-	Vector Dv = l.cross(Du).normalize();
-	double fov = s.fov;
-	double fl = (double)(s.width / (2 * tan((0.5*fov)*pi / 180.0)));
-	Vector Vp = l.normalize();
-	Vp.x = Vp.x*fl - 0.5f*(s.width*Du.x + s.height*Dv.x);
-	Vp.y = Vp.y*fl - 0.5f*(s.width*Du.y + s.height*Dv.y);
-	Vp.z = Vp.z*fl - 0.5f*(s.width*Du.z + s.height*Dv.z);
-
-	for (int j = 0; j < s.height; j++) {
-		//showStatus("Scanline " + j);
-		for (int i = 0; i < s.width; i++) {
-			//render(i, j);
-			Vector dir = Vector(i*Du.x + j*Dv.x + Vp.x, i*Du.y + j*Dv.y + Vp.y, i*Du.z + j*Dv.z + Vp.z);
-			Ray ray(eye, dir, s.backColor);
-			trace(ray);
-			pixelBuffer[j][i] = ray.intersection.col;
-			//if (trace(ray) == true) {
-			//	//gc.setColor(ray.Shade(lightList, objectList, background));
-			//	//ulta kortesi
-			//	//image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
-			//	//image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
-			//	
-			//}
-			//else {
-			//	//gc.setColor(background);
-			//	pixelBuffer[i][j] = s.backColor;
-			//}
-			//gc.drawLine(i, j, i, j);        // oh well, it works.
-		}
-		//g.drawImage(screen, 0, 0, this);        // doing this less often speed things up a bit
-	}
-
-
-
-	//draw output to bmp file
-	image = bitmap_image(s.width, s.height);
-
-	for (int i = 0; i < rows; i++)
-	{
-		for (int j = 0; j < columns; j++)
-		{
-			unsigned char r, g, b;
-			r = (unsigned char)(pixelBuffer[i][j].r * 255);
-			g = (unsigned char)(pixelBuffer[i][j].g * 255);
-			b = (unsigned char)(pixelBuffer[i][j].b * 255);
-			if (r > 255) r = 255;
-			if (g > 255) g = 255;
-			if (b > 255) b = 255;
-
-			image.set_pixel(j, i, r, g, b);
-		}
-	}
-	image.save_image("out_my.bmp");
 }
 
 void inputSceneParameters(){
@@ -876,6 +791,69 @@ void inputSceneParameters(){
 	s.checkerboard.pO = Point(1.0, 1.0, 0.0);
 	s.fov = 45;
 }
+void raytraceMain(){
+	int rows = s.height;
+	int columns = s.width;
+	Color** pixelBuffer;
+	pixelBuffer = new Color*[rows];
+	for (int j = 0; j < rows; j++)
+	{
+		pixelBuffer[j] = new Color[columns];
+	}
+	ifstream sceneFileIn("camera.txt");
+	Vector l, u;
+	Point eye;
+	if (sceneFileIn.is_open())
+	{
+		string line;
+		getline(sceneFileIn, line);	//look direction
+		stringstream(line) >> l.x >> l.y >> l.z;
+		getline(sceneFileIn, line); //eye position
+		stringstream(line) >> eye.x >> eye.y >> eye.z;
+		getline(sceneFileIn, line); //up direction
+		stringstream(line) >> u.x >> u.y >> u.z;
+		sceneFileIn.close();
+	}
+
+	// Compute viewing matrix that maps a
+	// screen coordinate to a ray direction
+	Vector Du = l.cross(u).normalize();
+	Vector Dv = l.cross(Du).normalize();
+	double fov = s.fov;
+	double fl = (double)(s.width / (2 * tan((0.5*fov)*pi / 180.0)));
+	Vector Vp = l.normalize();
+	Vp.x = Vp.x*fl - 0.5f*(s.width*Du.x + s.height*Dv.x);
+	Vp.y = Vp.y*fl - 0.5f*(s.width*Du.y + s.height*Dv.y);
+	Vp.z = Vp.z*fl - 0.5f*(s.width*Du.z + s.height*Dv.z);
+
+	for (int j = 0; j < s.height; j++) {
+		for (int i = 0; i < s.width; i++) {
+			Vector dir = Vector(i*Du.x + j*Dv.x + Vp.x, i*Du.y + j*Dv.y + Vp.y, i*Du.z + j*Dv.z + Vp.z);
+			Ray ray(eye, dir, s.backColor);
+			trace(ray);
+			pixelBuffer[j][i] = ray.intersection.col;
+		}
+	}
+
+	//draw output to bmp file
+	image = bitmap_image(s.width, s.height);
+	for (int i = 0; i < rows; i++)
+	{
+		for (int j = 0; j < columns; j++)
+		{
+			unsigned char r, g, b;
+			r = (unsigned char)(pixelBuffer[i][j].r * 255);
+			g = (unsigned char)(pixelBuffer[i][j].g * 255);
+			b = (unsigned char)(pixelBuffer[i][j].b * 255);
+			if (r > 255) r = 255;
+			if (g > 255) g = 255;
+			if (b > 255) b = 255;
+
+			image.set_pixel(j, i, r, g, b);
+		}
+	}
+	image.save_image("out_my.bmp");
+}
 
 int main(int argc, char **argv){
 	inputSceneParameters();
@@ -899,8 +877,6 @@ int main(int argc, char **argv){
 	glutMouseFunc(mouseListener);
 
 	glutMainLoop();		//The main loop of OpenGL
-
-
-
+	
 	return 0;
 }
