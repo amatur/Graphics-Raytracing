@@ -271,7 +271,7 @@ public:
 		origin = eye;
 		direction = dir.normalize();
 		intersection.col = col;
-		intersection.t = 99999999;
+		intersection.t = 99999;
 	}
 
 	friend ostream &operator<<(ostream &output, const Ray &ray)
@@ -316,7 +316,19 @@ public:
 			//double t = -ray.direction.z / pos.z;
 			if (t >= 0 && t <= ray.intersection.t){
 				ray.intersection.t = t;
-				ray.intersection.col = Color(0, 1.0, 0);
+				Point iP = ray.origin + (ray.direction * t);
+				int x = iP.x;
+				int y = iP.y;
+				if (x % 10){
+					ray.intersection.col = Color(0, 0, 0);
+				}
+				if (abs(x % 10) >= 5 && abs(y % 10) >= 5 || abs(x % 10)  < 5 && abs(y % 10)  < 5){
+					ray.intersection.col = Color(0, 0, 0);
+				}
+				else{
+					ray.intersection.col = Color(1.0, 1.0, 1.0);
+				}
+				
 				return true;
 				//ray.intersection.obj = *this;
 			}
@@ -356,9 +368,6 @@ public:
 		if ((t > ray.intersection.t) || (t < 0)){
 			return false;
 		}
-		if (this->color.r == 1.0 && this->color.g == 1.0){
-			;
-		}
 		ray.intersection.t = t;
 		ray.intersection.col = this->color;
 		return true;
@@ -381,6 +390,7 @@ public:
 	int width;
 	int numObj;
 	int numLightSrc;
+	double fov;
 	vector<Sphere> spheres;
 	vector<Pyramid> pyramids;
 	Board checkerboard;
@@ -391,8 +401,8 @@ Scene s;
 
 
 bool trace(Ray &r) {
-	double MAX_T = 9999999999999;
-	r.intersection.t = MAX_T;
+	//double MAX_T = 9999999999999;
+	//r.intersection.t = MAX_T;
 	bool foundTraced = false;
 	
 	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
@@ -465,18 +475,39 @@ void drawGrid()
 	}
 }
 
+void drawPyramid(){
+		glBegin(GL_TRIANGLES);
+		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(0.0f, 1.f, 0.0f);
+		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(-1.0f, -1.0f, 1.0f);
+		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(1.0f, -1.0f, 1.0f);
+
+		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(0.0f, 1.0f, 0.0f);
+		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(-1.0f, -1.0f, 1.0f);
+		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(0.0f, -1.0f, -1.0f);
+
+		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(0.0f, 1.0f, 0.0f);
+		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(0.0f, -1.0f, -1.0f);
+		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(1.0f, -1.0f, 1.0f);
+
+
+		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(-1.0f, -1.0f, 1.0f);
+		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(0.0f, -1.0f, -1.0f);
+		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(1.0f, -1.0f, 1.0f);
+
+		glEnd();
+}
 
 void myDraw(){
-	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
-		Sphere object = *it;
-		glPushMatrix(); {
-			glColor3f(object.color.r, object.color.g, object.color.b);
-			glTranslatef(object.center.x, object.center.y, object.center.z); //move to axis center
-			glutSolidSphere(object.radius, 100, 100);
-		}
-		glPopMatrix();
+	//for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
+	//	Sphere object = *it;
+	//	glPushMatrix(); {
+	//		glColor3f(object.color.r, object.color.g, object.color.b);
+	//		glTranslatef(object.center.x, object.center.y, object.center.z); //move to axis center
+	//		glutSolidSphere(object.radius, 100, 100);
+	//	}
+	//	glPopMatrix();
 
-	}
+	//}
 
 }
 
@@ -529,7 +560,7 @@ void keyboardListener(unsigned char key, int x, int y){
 	case '0':
 		printCamera();
 		raytraceMain();
-		cout << "finished";
+		cout << "Drawn." <<endl;
 		break;
 	case 'g':
 		drawgrid = 1 - drawgrid;
@@ -670,7 +701,7 @@ void init(){
 	glLoadIdentity();
 
 	//give PERSPECTIVE parameters
-	gluPerspective(90, 1, 1, 1000.0);
+	gluPerspective(s.fov, 1, 1, 9999999);
 	//field of view in the Y (vertically)
 	//aspect ratio that determines the field of view in the X direction (horizontally)
 	//near distance
@@ -716,7 +747,7 @@ void raytraceMain(){
 	// screen coordinate to a ray direction
 	Vector Du = l.cross(u).normalize();
 	Vector Dv = l.cross(Du).normalize();
-	double fov = 90;
+	double fov = s.fov;
 	double fl = (double)(s.width / (2 * tan((0.5*fov)*pi / 180.0)));
 	Vector Vp = l.normalize();
 	Vp.x = Vp.x*fl - 0.5f*(s.width*Du.x + s.height*Dv.x);
@@ -843,7 +874,7 @@ void inputSceneParameters(){
 
 	s.checkerboard.n = Vector(0.0, 0.0, -1.0);
 	s.checkerboard.pO = Point(1.0, 1.0, 0.0);
-
+	s.fov = 45;
 }
 
 int main(int argc, char **argv){
