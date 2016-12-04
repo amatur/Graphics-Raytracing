@@ -1,3 +1,4 @@
+#define _SCL_SECURE_NO_WARNINGS
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
@@ -9,18 +10,16 @@
 #include <GL/glut.h>
 #include <vector>
 #include <assert.h>
+#include "bitmap_image.hpp"
 using namespace std;
 
+
 #define pi (2*acos(0.0))
+bitmap_image image;
 
 class Color{
 public:
 	double r, g, b;
-	/*Color(double r=0.0, double g=0.0, double b=0.0){
-	this->r = r;
-	this->g = g;
-	this->b = b;
-	}*/
 	friend ostream &operator<<(ostream &output, const Color &col)
 	{
 		output << "Color (" << col.r << "\t " << col.g << "\t " << col.b << ")";
@@ -62,6 +61,7 @@ public:
 	Vector normalize()
 	{
 		double mag = magnitude();
+		assert(mag != 0);
 		return Vector(x / mag, y / mag, z / mag);
 	}
 
@@ -391,8 +391,34 @@ void init(){
 	//near distance
 	//far distance
 }
+double removeNegZero(double theFloat, int precision)
+{
+	if ((theFloat < 0.0f) &&
+		(-log10(abs(theFloat)) > precision))
+	{
+		return -theFloat;
+	}
+	else
+	{
+		return theFloat;
+	}
+}
+int compare(double v1, double v2, double e = 0.00001){
+	v1 = removeNegZero(v1, 7);
+	v2 = removeNegZero(v2, 7);
 
-
+	if (abs(v1 - v2) < e){
+		// v1 == v2
+		return 0;
+	}
+	else if (v1 > v2){
+		return 1;
+	}
+	else if (v1 < v2){
+		return -1;
+	}
+	return -999;
+}
 
 class Vector4 {
 public:
@@ -473,54 +499,85 @@ public:
 };
 
 
-class Obj{
-public:
-	string name;
-	Color color;
-	double ambient, diffuse, specular, reflection, shininess;
-	bool intersect;
-	bool intersect(Ray &ray) {
-	}
-};
 
-class Sphere : public Obj{
+class Intersection{
 public:
-	double radius;
-	Point center;
-	/*Sphere(double radius, Vector4 center){
-	this->radius = radius;
-	this->center = center;
-	}*/
+	Vector normal;
+	Color col;
+	double t;
 };
-
 
 class Ray {
 public:
-	double MAX_T = 99999;
 	Point origin;
 	Vector direction;
-	double t;
-	Obj intersectedObject;
+
+	double MAX_T = 99999;
+	
+	Intersection intersection;
 
 	Ray(Point eye, Vector dir) {
 		origin = eye;
 		direction = dir.normalize();
 	}
-
-	bool trace(Vector objects) {
+	bool trace(){
+		return false; 
+	}
+	/*bool trace() {
 		vector<Obj> objList = s.objects;
-		t = MAX_T;
+		intersection.t = MAX_T;
 		bool foundTraced = false;
 		for (vector<Obj>::iterator it = objList.begin(); it != objList.end(); ++it){
 			Obj object = *it;
-			foundTraced = intersectedObject.intersect(*this);
+			foundTraced = object.intersect(*this);
 		}
 		return (foundTraced);
-	}
+	}*/
 	friend ostream &operator<<(ostream &output, const Ray &ray)
 	{
-		output << "ray origin = " << ray.origin << "  direction = " << ray.direction << "  t = " << ray.t;
+		output << "ray origin = " << ray.origin << "  direction = " << ray.direction << "  t = " << ray.intersection.t;
 		return output;
+	}
+};
+
+class Obj{
+public:
+	string name;
+	Color color;
+	double ambient, diffuse, specular, reflection, shininess;
+	bool intersect(Ray &ray) {
+		return false;
+	}
+};
+
+
+class Board : public Obj{
+public:
+	//plane is in point normal form
+	Vector n;	//normal (unit)
+	Point pO;	//point on plane
+
+	bool intersect(Ray& ray)
+	{
+		// for ray: p = rO + rD * t
+		// for plane: (p - pO).n = 0 
+
+		// assuming vectors are all normalized
+		assert(compare(l.magnitude(), 1) == 0);
+		assert(compare(n.magnitude(), 1) == 0);
+
+		double denom = n.dot(l);
+		// if dot product is 0 then no intersection
+		if (denom > 1e-6) {
+			Vector diff = pO - ray.origin;
+			double t = diff.dot(n) / denom;			
+			if (t >= 0 && t <= ray.intersection.t){
+				ray.intersection.t = t;
+				//ray.intersection.obj = *this;
+			}
+		}
+
+		return false;
 	}
 };
 
@@ -528,11 +585,6 @@ class Sphere : public Obj{
 public:
 	double radius;
 	Point center;
-	/*Sphere(double radius, Vector4 center){
-		this->radius = radius;
-		this->center = center;
-	}*/	
-
 
 	bool intersect(Ray &ray) {
 		//float dx = center.x - ray.origin.x;
@@ -543,7 +595,7 @@ public:
 
 		// Do the following quick check to see if there is even a chance
 		// that an intersection here might be closer than a previous one
-		if (v - radius > ray.t){
+		if (v - radius > ray.intersection.t){
 			return false;
 		}
 
@@ -556,12 +608,12 @@ public:
 		// Test if the intersection is in the positive
 		// ray direction and it is the closest so far
 		t = v - ((double)sqrt(t));
-		if ((t > ray.t) || (t < 0)){
+		if ((t > ray.intersection.t) || (t < 0)){
 			return false;
 		}
 
-		ray.t = t;
-		ray.intersectedObject = *this;
+		ray.intersection.t = t;
+		//ray.intersection.obj = *this;
 		return true;
 	}
 };
@@ -581,22 +633,32 @@ public:
 	int numLightSrc;
 	vector<Obj> objects;
 	vector<Point> lightSources;
+	Color backColor;
 };
 Scene s;
 
+
 void render(int i, int j) {
-	//Vector dir = Vector(i*Du.x + j*Dv.x + Vp.x,	i*Du.y + j*Dv.y + Vp.y,	i*Du.z + j*Dv.z + Vp.z);
-	//Ray ray = new Ray(eye, dir);
-	//if (ray.trace(objectList)) {
-	//	gc.setColor(ray.Shade(lightList, objectList, background));
-	//}
-	//else {
-	//	gc.setColor(background);
-	//}
-	//gc.drawLine(i, j, i, j);        // oh well, it works.
+	
 }
 
 void raytraceMain(){
+	int rows = s.height;
+	int columns = s.width;
+	Color** pixelBuffer;
+	pixelBuffer = new Color*[rows];
+	for (int j = 0; j < rows; j++)
+	{
+		pixelBuffer[j] = new Color[columns];
+	}
+
+	/*for (int i = 0; i < rows; i++)
+	{
+		for (int j = 0; j < columns; j++)
+		{
+			pixelBuffer[i][j] = s.backColor;
+		}
+	}*/
 	ifstream sceneFileIn("camera.txt");	
 	Vector l, u;
 	Point eye;
@@ -627,10 +689,38 @@ void raytraceMain(){
 	for (int j = 0; j < s.height; j++) {
 		//showStatus("Scanline " + j);
 		for (int i = 0; i < s.width; i++) {
-			render(i, j);
+			//render(i, j);
+			Vector dir = Vector(i*Du.x + j*Dv.x + Vp.x,	i*Du.y + j*Dv.y + Vp.y,	i*Du.z + j*Dv.z + Vp.z);
+			Ray ray(eye, dir);
+			if (ray.trace()) {
+				//gc.setColor(ray.Shade(lightList, objectList, background));
+				//ulta kortesi
+				//image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
+				//image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
+				pixelBuffer[i][j] = ray.intersection.col;
+			}
+			else {
+				//gc.setColor(background);
+				pixelBuffer[i][j] = s.backColor;
+			}
+			//gc.drawLine(i, j, i, j);        // oh well, it works.
 		}
 		//g.drawImage(screen, 0, 0, this);        // doing this less often speed things up a bit
 	}
+
+
+
+	//draw output to bmp file
+	image = bitmap_image(s.width, s.height);
+	
+	for (int i = 0; i < rows; i++)
+	{
+		for (int j = 0; j < columns; j++)
+		{
+			image.set_pixel(j, i, pixelBuffer[i][j].r, pixelBuffer[i][j].g, pixelBuffer[i][j].b);
+		}
+	}
+	image.save_image("out_my.bmp");
 }
 
 void inputSceneParameters(){
@@ -693,6 +783,11 @@ void inputSceneParameters(){
 		}
 		sceneFileIn.close();
 	}
+	s.backColor.r = 0;
+	s.backColor.g = 0;
+	s.backColor.b = 0;
+
+
 }
 
 int main(int argc, char **argv){
