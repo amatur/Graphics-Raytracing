@@ -284,11 +284,17 @@ public:
 class Triangle : public Obj{
 public:
 	Point p0, p1, p2;
+	double a, b, c;
+	Vector normal;
 	Triangle(Point p0, Point p1, Point p2, Color c){
 		this->p0 = p0;
 		this->p1 = p1;
 		this->p2 = p2;
 		this->color = c;
+		//double denom = (p1 - p0).cross(p)
+		//a =			
+
+
 	}
 	Triangle(){
 	}
@@ -307,24 +313,25 @@ public:
 
 
 		// compute plane's normal
-		Vector p01 = p1 - p0;
-		Vector p02 = p2 - p0;
+		//Vector p01 = p1 - p0;
+		//Vector p02 = p2 - p0;
 		// no need to normalize
-		Vector N = p01.cross(p02); // N
-		double area2 = N.magnitude();
+		// simply compute the cross product of AB and AC. 
+		normal = (p1 - p0).cross(p2 - p0); // N
+		normal = normal.normalize();
 
 		// Step 1: finding P
 		// check if ray and plane are parallel ?
-		double NdotRayDirection = N.dot(ray.direction);
+		double NdotRayDirection = normal.dot(ray.direction);
 		double kEpsilon = 1e-6;
 		if (fabs(NdotRayDirection) < kEpsilon) // almost 0
 			return false; // they are parallel so they don't intersect !
 
 		// compute d parameter using equation 2
-		double d = N.dot(p0 - Point(0, 0, 0));
+		double d = normal.dot(p0 - Point(0, 0, 0));
 
 		// compute t (equation 3)
-		double t = (N.dot(ray.origin - Point(0, 0, 0)) + d) / NdotRayDirection;
+		double t = (normal.dot(ray.origin - Point(0, 0, 0)) + d) / NdotRayDirection;
 		// check if the triangle is in behind the ray
 		if (t < 0) return false; // the triangle is behind
 
@@ -338,20 +345,23 @@ public:
 		Vector edge0 = p1 - p0;
 		Vector Pp0 = P - p0;
 		C = edge0.cross(Pp0);
-		if (N.dot(C) < 0) return false; // P is on the right side
+		if (normal.dot(C) < 0) return false; // P is on the right side
 
 		// edge 1
 		Vector edge1 = p2 - p1;
 		Vector vp1 = P - p1;
 		C = edge1.cross(vp1);
-		if (N.dot(C) < 0) return false; // P is on the right side
+		if (normal.dot(C) < 0) return false; // P is on the right side
 
 		// edge 2
 		Vector edge2 = p0 - p2;
 		Vector vp2 = P - p2;
 		C = edge2.cross(vp2);
-		if (N.dot(C) < 0) return false; // P is on the right side;
+		if (normal.dot(C) < 0) return false; // P is on the right side;
 
+
+		ray.intersection.t = t;
+		ray.intersection.col = this->color;
 		return true; // this ray hits the triangle
 	}
 };
@@ -381,11 +391,12 @@ public:
 			Vector diff = pO - ray.origin;
 			double t = diff.dot(n) / denom;
 			if (t >= 0 && t <= ray.intersection.t){
-				ray.intersection.t = t;
+				
 				Point iP = ray.origin + (ray.direction * t);
 				int x = iP.x;
 				int y = iP.y;
 				if (x >= pO.x && x <= pO.x + width && y >= pO.y && y <= pO.y + width){
+					ray.intersection.t = t;
 					ray.intersection.col = this->color;
 					return true;
 				}
@@ -401,8 +412,7 @@ public:
 	double height;
 	Triangle t[4];
 	PyramidBase base;
-	Pyramid(){}
-	Pyramid(Point lp, double w, double h){
+	Pyramid(Point lp, double w, double h, Color color, double ambient, double diffuse, double specular, double reflection, double shininess){
 		lowestPoint = lp;
 		width = w;
 		height = h;
@@ -410,12 +420,18 @@ public:
 		Point p1(lp.x + w, lp.y + 0, lp.z + 0); //front right vertex
 		Point p2(lp.x + w, lp.y + w, lp.z + 0); //back right vertex
 		Point p3(lp.x + 0, lp.y + w, lp.z + 0);//back left vertex
-		Point top(lp.x + w/2.0, lp.y + w/2.0, lp.z + h); //top vertex
+		Point top(lp.x + w/2.0, lp.y + w/2.0, lp.z + h); //top vertex		
 		t[0] = Triangle(p0, p1, top, color);
 		t[1] = Triangle(p1, p2, top, color);
 		t[2] = Triangle(p2, p3, top, color);
 		t[3] = Triangle(p3, p0, top, color);
 		base = PyramidBase(lp, w, color);
+		this->color = color;
+		this->ambient = ambient;
+		this->diffuse = diffuse;
+		this->specular = specular;
+		this->reflection = reflection;
+		this->shininess = shininess;
 	}
 };
 
@@ -445,18 +461,25 @@ bool trace(Ray &r) {
 		if (object.intersect(r) == true){
 			foundTraced = true;
 		}
-
 	}
+
+	for (vector<Pyramid>::iterator it = s.pyramids.begin(); it != s.pyramids.end(); ++it){
+		Pyramid p = *it;
+		for (int i = 0; i < 4; i++)
+		{
+			if (p.t[i].intersect(r) == true){
+				foundTraced = true;
+			}
+		}
+		if (p.base.intersect(r) == true){
+			foundTraced = true;
+		}
+	}
+
 	Board object = s.checkerboard;
 	if (object.intersect(r) == true){
 		foundTraced = true;
 	}
-	/*for (vector<Pyramid>::iterator it = s.pyramids.begin(); it != s.pyramids.end(); ++it){
-	Pyramid object = *it;
-	foundTraced = object.intersect(r);
-	}
-	Board object = s.checkerboard;
-	foundTraced = object.intersect(r);*/
 
 	return (foundTraced);
 }
@@ -503,26 +526,30 @@ void drawGrid()
 		}glEnd();
 	}
 }
-void drawPyramid(){
-		glBegin(GL_TRIANGLES);
-		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(0.0f, 1.f, 0.0f);
-		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(-1.0f, -1.0f, 1.0f);
-		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(1.0f, -1.0f, 1.0f);
+void drawPyramid(Pyramid& p){
+	glBegin(GL_TRIANGLES); {
+		for (int i = 0; i < 4; i++)
+		{
+			glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(p.t[i].p0.x, p.t[i].p0.y, p.t[i].p0.z);
+			glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(p.t[i].p1.x, p.t[i].p1.y, p.t[i].p1.z);
+			glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(p.t[i].p2.x, p.t[i].p2.y, p.t[i].p2.z);
+		}
+	}glEnd();
 
-		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(0.0f, 1.0f, 0.0f);
-		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(-1.0f, -1.0f, 1.0f);
-		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(0.0f, -1.0f, -1.0f);
-
-		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(0.0f, 1.0f, 0.0f);
-		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(0.0f, -1.0f, -1.0f);
-		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(1.0f, -1.0f, 1.0f);
-
-
-		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(-1.0f, -1.0f, 1.0f);
-		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(0.0f, -1.0f, -1.0f);
-		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(1.0f, -1.0f, 1.0f);
-
-		glEnd();
+	Point lp = p.lowestPoint;
+	double w = p.width;
+	double h = p.height;
+	Point p0(lp.x + 0, lp.y + 0, lp.z + 0); //front left vertex
+	Point p1(lp.x + w, lp.y + 0, lp.z + 0); //front right vertex
+	Point p2(lp.x + w, lp.y + w, lp.z + 0); //back right vertex
+	Point p3(lp.x + 0, lp.y + w, lp.z + 0);//back left vertex
+	Point top(lp.x + w / 2.0, lp.y + w / 2.0, lp.z + h); //top vertex
+	glBegin(GL_QUADS); {
+		glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(p0.x, p0.y, p0.z);
+		glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(p1.x, p1.y, p1.z);
+		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(p2.x, p2.y, p2.z);
+		glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(p3.x, p3.y, p3.z);
+	}glEnd();
 }
 void drawScene(){
 	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
@@ -535,7 +562,10 @@ void drawScene(){
 		glPopMatrix();
 
 	}
-
+	for (vector<Pyramid>::iterator it = s.pyramids.begin(); it != s.pyramids.end(); ++it){
+		Pyramid p = *it;
+		drawPyramid(p);
+	}
 }
 
 void printCamera(){
@@ -756,18 +786,21 @@ void inputSceneParameters(){
 				s.spheres.push_back(o);
 			}
 			else if (line == "pyramid"){
-				Pyramid o;
-				o.name = "pyramid";
+				Point lowestPoint;
+				Color color;
+				double width, height, ambient, diffuse, specular, reflection, shininess;				
 				getline(sceneFileIn, line);	//1. lowest point co-ordinate
-				stringstream(line) >> o.lowestPoint.x >> o.lowestPoint.y >> o.lowestPoint.z;
+				stringstream(line) >> lowestPoint.x >> lowestPoint.y >> lowestPoint.z;
 				getline(sceneFileIn, line);	//2. width, height
-				stringstream(line) >> o.width >> o.height;
+				stringstream(line) >> width >> height;
 				getline(sceneFileIn, line);	//-3: color
-				stringstream(line) >> o.color.r >> o.color.g >> o.color.b;
+				stringstream(line) >> color.r >> color.g >> color.b;
 				getline(sceneFileIn, line);	//-2: ambient diffuse specular reflection coefficient
-				stringstream(line) >> o.ambient >> o.diffuse >> o.specular >> o.reflection;
+				stringstream(line) >> ambient >> diffuse >> specular >> reflection;
 				getline(sceneFileIn, line);	//-1: shininess
-				stringstream(line) >> o.shininess;
+				stringstream(line) >> shininess;
+				Pyramid o(lowestPoint, width, height, color, ambient, diffuse, specular, reflection, shininess);
+				o.name = "pyramid";
 				s.pyramids.push_back(o);
 			}
 			getline(sceneFileIn, line);	//blank
@@ -852,7 +885,7 @@ void raytraceMain(){
 			image.set_pixel(j, i, r, g, b);
 		}
 	}
-	image.save_image("out_my.bmp");
+	image.save_image("out.bmp");
 }
 
 int main(int argc, char **argv){

@@ -1,0 +1,39 @@
+<html>
+<body>
+<pre>
+<h1>Build Log</h1>
+<h3>
+--------------------Configuration: textured_cube - Win32 Debug--------------------
+</h3>
+<h3>Command Lines</h3>
+Creating temporary file "C:\DOCUME~1\Owner\LOCALS~1\Temp\RSP6C.tmp" with contents
+[
+/nologo /MLd /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /Fp"Debug/textured_cube.pch" /YX /Fo"Debug/" /Fd"Debug/" /FD /GZ /c 
+"C:\_OpenGL Programs\_Book\chap8\textured_cube\Camera.cpp"
+"C:\_OpenGL Programs\_Book\chap8\textured_cube\GlutWin.cpp"
+"C:\_OpenGL Programs\_Book\chap8\textured_cube\tex_cube.cpp"
+]
+Creating command line "cl.exe @C:\DOCUME~1\Owner\LOCALS~1\Temp\RSP6C.tmp" 
+Creating temporary file "C:\DOCUME~1\Owner\LOCALS~1\Temp\RSP6D.tmp" with contents
+[
+kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /incremental:yes /pdb:"Debug/textured_cube.pdb" /debug /machine:I386 /out:"Debug/textured_cube.exe" /pdbtype:sept 
+".\Debug\Camera.obj"
+".\Debug\GlutWin.obj"
+".\Debug\tex_cube.obj"
+]
+Creating command line "link.exe @C:\DOCUME~1\Owner\LOCALS~1\Temp\RSP6D.tmp"
+<h3>Output Window</h3>
+Compiling...
+Camera.cpp
+GlutWin.cpp
+tex_cube.cpp
+c:\_opengl programs\_book\chap8\textured_cube\tex_cube.cpp(74) : warning C4018: '<' : signed/unsigned mismatch
+Linking...
+
+
+
+<h3>Results</h3>
+textured_cube.exe - 0 error(s), 1 warning(s)
+</pre>
+</body>
+</html>
