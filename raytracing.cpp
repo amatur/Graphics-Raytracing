@@ -291,47 +291,37 @@ public:
 		this->p1 = p1;
 		this->p2 = p2;
 		this->color = c;
+		normal = (p1 - p0).cross(p2 - p0); // N
+		normal = normal * (-1);
+		normal = normal.normalize();
 		//double denom = (p1 - p0).cross(p)
 		//a =			
-
-
 	}
 	Triangle(){
 	}
 	bool intersect(Ray& ray)
 	{
-
 		//Vector e0 = p1 - p0;
 		//Vector e1 = p2 - p0;
 		//Vector N = e0.cross(e1);
 		//N = N.normalize();
 		//
 		//// implementing the single/double sided feature
-		//if (ray.direction.dot(N) > 0)
-		//	return false; // back-facing surface
+		if (ray.direction.dot(normal) > 0){
+			normal = normal * (-1); // it was back-facing surface
+		}
 
-
-
-		// compute plane's normal
-		//Vector p01 = p1 - p0;
-		//Vector p02 = p2 - p0;
-		// no need to normalize
-		// simply compute the cross product of AB and AC. 
-		normal = (p1 - p0).cross(p2 - p0); // N
-		normal = normal.normalize();
-
-		// Step 1: finding P
-		// check if ray and plane are parallel ?
-		double NdotRayDirection = normal.dot(ray.direction);
-		double kEpsilon = 1e-6;
-		if (fabs(NdotRayDirection) < kEpsilon) // almost 0
-			return false; // they are parallel so they don't intersect !
-
-		// compute d parameter using equation 2
-		double d = normal.dot(p0 - Point(0, 0, 0));
-
-		// compute t (equation 3)
-		double t = (normal.dot(ray.origin - Point(0, 0, 0)) + d) / NdotRayDirection;
+		double denom = normal.dot(ray.direction);
+		// if dot product is 0 then no intersection
+		if (abs(denom) <= 1e-6) {
+			return false;
+		}
+		Vector diff = p0 - ray.origin;
+		double t = diff.dot(normal) / denom;
+		if (t < 0 || t > ray.intersection.t){
+			return false;
+		}			
+		
 		// check if the triangle is in behind the ray
 		if (t < 0) return false; // the triangle is behind
 
