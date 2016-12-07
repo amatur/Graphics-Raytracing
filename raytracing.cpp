@@ -590,7 +590,7 @@ void drawScene(){
 		glPushMatrix(); {
 			glColor3f(1, 1, 1);
 			glTranslatef(lightSrc.x, lightSrc.y, lightSrc.z); //move to axis center
-			glutSolidSphere(10, 100, 100);
+			glutSolidSphere(10, 100, 5);
 		}
 		glPopMatrix();
 	}
@@ -657,7 +657,10 @@ void keyboardListener(unsigned char key, int x, int y){
 		u = u.rotate(ROTATE_SPEED, l);
 		break;
 	case '0':
-		printCamera();
+		//printCamera();
+		cout << l << endl;
+		cout << pos << endl;
+		cout << u << endl;
 		raytraceMain();
 		cout << "Drawn." <<endl;
 		
@@ -909,19 +912,32 @@ void rayAddDiffuseSpecular(Ray &ray){
 			double dij = abs((shadowHitPoint - lightSrc).magnitude());
 			double D = abs((hitPoint - lightSrc).magnitude());
 			if (compare(dij, D) == -1){
+				//ray.intersection.col = Color(0.8, 0.8, 0.8);
 				//object hitpoint is in shadow
 				//do not add diffuse specular
 				//cout << "SHADOW" << endl;
 				return;
 			}
 		};
+		
+		
 
 		//L = point of lightsrc, H = hitpoint
-		Vector l = hitPoint - lightSrc; //LH
+		Vector lll = lightSrc - hitPoint; //HL
+		lll = lll.normalize();
 
 		//if it's not shadowed, add diffuse and specular
 		//add diffuse
-		double lambert = l.dot(ray.intersection.normal);	//cos theta
+		if (compare(lll.magnitude(),1) != 0){
+			;
+			double d  = (lll.magnitude());
+		}
+		if (compare(ray.intersection.normal.magnitude(), 1) != 0){
+			;
+			double d = ray.intersection.normal.magnitude() ;
+		}
+		
+		double lambert = lll.dot(ray.intersection.normal);	//cos theta
 		if (lambert > 0) {
 			if (ray.intersection.diffuse > 0) {
 				double diffuse = ray.intersection.diffuse * lambert;
@@ -934,18 +950,28 @@ void rayAddDiffuseSpecular(Ray &ray){
 				//g += diffuse*ig*light.ig;
 				//b += diffuse*ib*light.ib;
 			}
-			Vector v = hitPoint - pos;//from eye point V to hitpoint H, VH
+			Vector vvv = pos - hitPoint;//from eye point V to hitpoint H, HV
+			vvv = vvv.normalize();
 			if (ray.intersection.specular > 0) {
 				lambert *= 2;
-				Vector r = (ray.intersection.normal * lambert) - l;
-				double spec = v.dot(r);
+				if (compare(r.magnitude(), 1) != 0){
+					;
+					double d = (r.magnitude());
+				}
+				if (compare(vvv.magnitude(), 1) != 0){
+					;
+					double d = vvv.magnitude();
+				}
+				Vector rrr = (ray.intersection.normal * lambert) - l;
+				rrr = rrr.normalize();
+				double spec = vvv.dot(rrr);
 				//float spec = v.dot(lambert*n.x - l.x, lambert*n.y - l.y, lambert*n.z - l.z);
 				if (spec > 0) {					
 					spec = ray.intersection.specular *((double)pow((double)spec, (double)ray.intersection.shininess));
-					//ray.intersection.col.r = ray.intersection.col.r + spec;
-					//ray.intersection.col.g = ray.intersection.col.g + spec;
-					//ray.intersection.col.b = ray.intersection.col.b + spec;
-					ray.intersection.col = ray.intersection.col + spec;
+					ray.intersection.col.r = ray.intersection.col.r + spec;
+					ray.intersection.col.g = ray.intersection.col.g + spec;
+					ray.intersection.col.b = ray.intersection.col.b + spec;
+					//ray.intersection.col = ray.intersection.col + spec;
 
 					//r += spec*light.ir;
 					//g += spec*light.ig;
@@ -953,6 +979,8 @@ void rayAddDiffuseSpecular(Ray &ray){
 				}
 			}
 		}
+
+			
 	}
 
 }
