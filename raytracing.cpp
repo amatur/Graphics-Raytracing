@@ -14,20 +14,20 @@
 using namespace std;
 
 #define pi (2*acos(0.0))
+#define MOVEAHEAD 0.002
 bool debug = true;
 
 
 /** -------- Epsilon check ------------ **/
-double removeNegZero(double theFloat, int precision)
+double removeNegZero(double theDouble, int precision)
 {
-	if ((theFloat < 0.0f) &&
-		(-log10(abs(theFloat)) > precision))
+	if ((theDouble < 0.0f) && (-log10(abs(theDouble)) > precision))
 	{
-		return -theFloat;
+		return -theDouble;
 	}
 	else
 	{
-		return theFloat;
+		return theDouble;
 	}
 }
 int compare(double v1, double v2, double e = 0.00001){
@@ -126,6 +126,11 @@ public:
 	{
 		return Point(x + d, y + d, z + d);
 	}
+
+	Point operator*(const double &d) const
+	{
+		return Point(x * d, y * d, z * d);
+	}
 	Point operator-(const Vector &v) const
 	{
 		return Point(x - v.x, y - v.y, z - v.z);
@@ -218,7 +223,7 @@ public:
 
 	friend ostream &operator<<(ostream &output, const Ray &ray)
 	{
-		output << "ray origin = " << ray.origin << "  direction = " << ray.direction << "  t = " << ray.intersection.t;
+		output << "origin = " << ray.origin << "  direction = " << ray.direction;
 		return output;
 	}
 };
@@ -247,33 +252,24 @@ public:
 		assert(compare(ray.direction.magnitude(), 1) == 0);
 		assert(compare(n.magnitude(), 1) == 0);
 
-
 		double denom = n.dot(ray.direction);
 		// if dot product is 0 then no intersection
 		if (abs(denom) > 1e-6) {
 			Vector diff = pO - ray.origin;
 			double t = diff.dot(n) / denom;
-			//double t = -ray.direction.z / pos.z;
 			if (t >= 0 && t <= ray.intersection.t){
 				Point iP = ray.origin + (ray.direction * t);
 				int x = iP.x;
 				int y = iP.y;
 				if (abs(x % 10) >= 5 && abs(y % 10) >= 5 || abs(x % 10)  < 5 && abs(y % 10)  < 5){
-					//ray.intersection.col = Color(0, 0, 0);
 					ray.intersection.set(t, n, Color(0, 0, 0), ambient, diffuse, specular, reflection, shininess);
-
 				}
 				else{
-					//ray.intersection.col = Color(1.0, 1.0, 1.0);
 					ray.intersection.set(t, n, Color(1.0, 1.0, 1.0), ambient, diffuse, specular, reflection, shininess);
-
 				}
-				
 				return true;
-				//ray.intersection.obj = *this;
 			}
 		}
-
 		return false;
 	}
 };
@@ -284,49 +280,44 @@ public:
 	Vector normal;
 
 	bool intersect(Ray &ray) {
-		//float dx = center.x - ray.origin.x;
-		//float dy = center.y - ray.origin.y;
-		//float dz = center.z - ray.origin.z;
 		Vector d = center - ray.origin;
 		double v = ray.direction.dot(d);
 
-		// Do the following quick check to see if there is even a chance
-		// that an intersection here might be closer than a previous one
-		//if (v - radius > ray.intersection.t){
-		//	return false;
-		//}
-
-		// Test if the ray actually intersects the sphere
 		double t = radius * radius + v * v - d.x * d.x - d.y * d.y - d.z * d.z;
 		if (t < 0){
 			return false;
 		}
 
-		// Test if the intersection is in the positive
-		// ray direction and it is the closest so far
 		t = v - ((double)sqrt(t));
 		if ((t > ray.intersection.t) || (t < 0)){
 			return false;
 		}
 
 		Point Phit = ray.origin + t*ray.direction; 
-		ray.intersection.set(t + 0.1, (Phit - center).normalize(), this->color, ambient, diffuse, specular, reflection, shininess);
+		ray.intersection.set(t, (Phit - center).normalize(), this->color, ambient, diffuse, specular, reflection, shininess);
 		return true;
 	}
 };
+
+
 class Triangle : public Obj{
 public:
 	Point p0, p1, p2;
 	double a, b, c;
 	Vector normal;
+
+
 	Triangle(Point p0, Point p1, Point p2, Color c, double ambient, double diffuse, double specular, double reflection, double shininess){
 		this->p0 = p0;
 		this->p1 = p1;
 		this->p2 = p2;
 		this->color = c;
 		normal = (p1 - p0).cross(p2 - p0); // N
-		normal = normal * (-1);
 		normal = normal.normalize();
+		if (Vector(0.0, 0.0, 1.0).dot(normal) < 0){	// cos < 0 means obtuse angle (>90 degree)
+			normal = normal * (-1);
+		}
+		
 		//double denom = (p1 - p0).cross(p)
 		//a =			
 		this->ambient = ambient;
@@ -345,8 +336,9 @@ public:
 		//N = N.normalize();
 		//
 		//// implementing the single/double sided feature
-		if (ray.direction.dot(normal) > 0){
-			normal = normal * (-1); // it was back-facing surface
+		if (ray.direction.dot(normal) < 0){
+			//normal = normal * (-1); // it was back-facing surface
+			return false;
 		}
 
 		double denom = normal.dot(ray.direction);
@@ -489,13 +481,6 @@ bool trace(Ray &r) {
 	//r.intersection.t = MAX_T;
 	bool foundTraced = false;
 	
-	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
-		Sphere object = *it;
-		if (object.intersect(r) == true){
-			foundTraced = true;
-		}
-	}
-
 	for (vector<Pyramid>::iterator it = s.pyramids.begin(); it != s.pyramids.end(); ++it){
 		Pyramid p = *it;
 		for (int i = 0; i < 4; i++)
@@ -508,6 +493,15 @@ bool trace(Ray &r) {
 			foundTraced = true;
 		}
 	}
+
+	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
+		Sphere object = *it;
+		if (object.intersect(r) == true){
+			foundTraced = true;
+		}
+	}
+
+	
 
 	Board object = s.checkerboard;
 	if (object.intersect(r) == true){
@@ -657,7 +651,7 @@ void keyboardListener(unsigned char key, int x, int y){
 		u = u.rotate(ROTATE_SPEED, l);
 		break;
 	case '0':
-		//printCamera();
+		printCamera();
 		cout << l << endl;
 		cout << pos << endl;
 		cout << u << endl;
@@ -877,10 +871,6 @@ void inputSceneParameters(){
 	s.fov = 45;
 }
 
-Vector reflect(Vector &I, Vector &N)
-{
-	return I - 2 * I.dot(N) * N;
-}
 
 
 
@@ -891,7 +881,11 @@ void rayAddDiffuseSpecular(Ray &ray){
 		Point lightSrc = *it;
 		
 		Point hitPoint = ray.origin + ray.intersection.t * ray.direction;
-		Ray shadowRay = Ray(lightSrc, hitPoint - lightSrc, s.backColor); //we want LI ray
+		//L = point of lightsrc, H = hitpoint
+		Vector lll = lightSrc - hitPoint; //HL
+		lll = lll.normalize();
+
+		Ray shadowRay = Ray(hitPoint - lll * 0.001, hitPoint - lightSrc, s.backColor); //we want LH ray
 		if (trace(shadowRay)){
 			Point shadowHitPoint = shadowRay.origin + shadowRay.intersection.t * shadowRay.direction;
 			double dij = abs((shadowHitPoint - lightSrc).magnitude());
@@ -907,9 +901,7 @@ void rayAddDiffuseSpecular(Ray &ray){
 		
 		
 
-		//L = point of lightsrc, H = hitpoint
-		Vector lll = lightSrc - hitPoint; //HL
-		lll = lll.normalize();
+		
 
 		//if it's not shadowed, add diffuse and specular
 		//add diffuse
@@ -923,7 +915,9 @@ void rayAddDiffuseSpecular(Ray &ray){
 		}
 		
 		double lambert = lll.dot(ray.intersection.normal);	//cos theta
+		
 		if (lambert > 0) {
+			//lambert > 0
 			if (ray.intersection.diffuse > 0) {
 				double diffuse = ray.intersection.diffuse * lambert;
 				ray.intersection.col.r = ray.intersection.col.r + ray.intersection.surfaceCol.r * diffuse;
@@ -947,15 +941,15 @@ void rayAddDiffuseSpecular(Ray &ray){
 					;
 					double d = vvv.magnitude();
 				}
-				Vector rrr = (ray.intersection.normal * lambert) - l;
+				Vector rrr = (ray.intersection.normal * lambert) - lll;
 				rrr = rrr.normalize();
 				double spec = vvv.dot(rrr);
 				//float spec = v.dot(lambert*n.x - l.x, lambert*n.y - l.y, lambert*n.z - l.z);
 				if (spec > 0) {					
 					spec = ray.intersection.specular *((double)pow((double)spec, (double)ray.intersection.shininess));
-					ray.intersection.col.r = ray.intersection.col.r + spec;
-					ray.intersection.col.g = ray.intersection.col.g + spec;
-					ray.intersection.col.b = ray.intersection.col.b + spec;
+					ray.intersection.col.r = ray.intersection.col.r + spec * ray.intersection.surfaceCol.r;
+					ray.intersection.col.g = ray.intersection.col.g + spec * ray.intersection.surfaceCol.g;
+					ray.intersection.col.b = ray.intersection.col.b + spec * ray.intersection.surfaceCol.b;
 					//ray.intersection.col = ray.intersection.col + spec;
 
 					//r += spec*light.ir;
@@ -981,19 +975,15 @@ void rayTrace(Ray &ray, int depth){
 		rayAddDiffuseSpecular(ray);	//add diffuse and specular
 
 		//now add reflection
-		Vector R = reflect(ray.direction, ray.intersection.normal);
-		Point hitPoint = ray.origin + ray.intersection.t * ray.direction;
-		Ray reflectedRay = Ray(hitPoint + 0.03, R, s.backColor);
+		Vector I = ray.direction;
+		Vector N = ray.intersection.normal;
+		Vector R = I - 2 * I.dot(N) * N;
+		Point hitPoint = ray.origin + (ray.intersection.t) * ray.direction;
+		Ray reflectedRay = Ray(hitPoint + R.normalize() * MOVEAHEAD, R, s.backColor);
 		rayTrace(reflectedRay, depth - 1);
 		Color colorBroughtByReflectedRay = reflectedRay.intersection.col;
 		ray.intersection.col = ray.intersection.col + colorBroughtByReflectedRay * ray.intersection.reflection;
-		
 		assert(ray.intersection.normal.magnitude() != 0);
-		
-		//return ray.intersection.col;
-	}
-	else{
-		//return s.backColor;
 	}
 }
 
@@ -1021,16 +1011,12 @@ void raytraceMain(){
 		sceneFileIn.close();
 	}
 
-	// Compute viewing matrix that maps a
-	// screen coordinate to a ray direction
+	//generate all ray piercing viewing plane, with fov = 45 degree
 	Vector Du = l.cross(u).normalize();
 	Vector Dv = l.cross(Du).normalize();
-	double fov = s.fov;
-	double fl = (double)(s.width / (2 * tan((0.5*fov)*pi / 180.0)));
+	double fl = (double)(s.width / (2 * tan((0.5*s.fov)*pi / 180.0)));
 	Vector Vp = l.normalize();
-	Vp.x = Vp.x*fl - 0.5f*(s.width*Du.x + s.height*Dv.x);
-	Vp.y = Vp.y*fl - 0.5f*(s.width*Du.y + s.height*Dv.y);
-	Vp.z = Vp.z*fl - 0.5f*(s.width*Du.z + s.height*Dv.z);
+	Vp = Vp * fl - 0.5f * (s.width*Du + s.height*Dv);
 
 	for (int j = 0; j < s.height; j++) {
 		for (int i = 0; i < s.width; i++) {
@@ -1065,7 +1051,7 @@ int main(int argc, char **argv){
 	inputSceneParameters();
 
 	glutInit(&argc, argv);
-	glutInitWindowSize(800, 800);
+	glutInitWindowSize(s.width, s.height);
 	glutInitWindowPosition(0, 0);
 	glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGB);	//Depth, Double buffer, RGB color
 
