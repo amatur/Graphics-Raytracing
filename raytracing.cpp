@@ -14,6 +14,8 @@
 using namespace std;
 
 #define pi (2*acos(0.0))
+bool debug = true;
+
 
 /** -------- Epsilon check ------------ **/
 double removeNegZero(double theFloat, int precision)
@@ -186,6 +188,7 @@ public:
 	double t; 
 	Vector normal;
 	Color col;
+	Color surfaceCol;
 	double ambient, diffuse, specular, reflection, shininess;	
 	Intersection(){};
 	void set(double t, Vector n, Color c, double am, double di, double sp, double re, double sh){
@@ -307,7 +310,7 @@ public:
 		}
 
 		Point Phit = ray.origin + t*ray.direction; 
-		ray.intersection.set(t, (Phit - center).normalize(), this->color, ambient, diffuse, specular, reflection, shininess);
+		ray.intersection.set(t + 0.1, (Phit - center).normalize(), this->color, ambient, diffuse, specular, reflection, shininess);
 		return true;
 	}
 };
@@ -582,6 +585,15 @@ void drawPyramid(Pyramid& p){
 	}glEnd();
 }
 void drawScene(){
+	for (vector<Point>::iterator it = s.lightSources.begin(); it != s.lightSources.end(); ++it){
+		Point lightSrc = *it;
+		glPushMatrix(); {
+			glColor3f(1, 1, 1);
+			glTranslatef(lightSrc.x, lightSrc.y, lightSrc.z); //move to axis center
+			glutSolidSphere(10, 100, 100);
+		}
+		glPopMatrix();
+	}
 	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
 		Sphere object = *it;
 		glPushMatrix(); {
@@ -645,9 +657,10 @@ void keyboardListener(unsigned char key, int x, int y){
 		u = u.rotate(ROTATE_SPEED, l);
 		break;
 	case '0':
-		//printCamera();
+		printCamera();
 		raytraceMain();
 		cout << "Drawn." <<endl;
+		
 		break;
 	case 'g':
 		drawgrid = 1 - drawgrid;
@@ -787,17 +800,15 @@ void inputSceneParameters(){
 		getline(sceneFileIn, line);		//Line 2: number of pixels along both axes
 		stringstream(line) >> s.height;
 		s.width = s.height;
-		getline(sceneFileIn, line);		//Line 3 : blank
-
-
-		getline(sceneFileIn, line);		//Line 4 : number of objects
+		while (getline(sceneFileIn, line)){ //Line 3 : blank
+			if (!line.empty()) break;	//Line 4 : number of objects
+		}		
 		stringstream(line) >> s.numObj;
 		getline(sceneFileIn, line);		//Line 5 : blank
 		for (int i = 0; i < s.numObj; i++)
 		{
-			while (1){
-				getline(sceneFileIn, line);
-				if (line != "\n") break;
+			while (getline(sceneFileIn, line)){
+				if (!line.empty()) break;	//0: object name
 			}
 			//getline(sceneFileIn, line);	//0: object name
 			if (line == "sphere"){
@@ -833,15 +844,19 @@ void inputSceneParameters(){
 				o.name = "pyramid";
 				s.pyramids.push_back(o);
 			}
-			getline(sceneFileIn, line);	//blank
+			//getline(sceneFileIn, line);	//blank
 		}
-		getline(sceneFileIn, line); //number of light sources	
+		while (getline(sceneFileIn, line)){
+			if (!line.empty()) break; //number of light sources	
+		}
 		stringstream(line) >> s.numLightSrc;
+		if (debug) cout << "Num ls: "<< s.numLightSrc<<endl;
 		for (int i = 0; i < s.numLightSrc; i++)
 		{
 			Point p;
 			getline(sceneFileIn, line); //pos
 			stringstream(line) >> p.x >> p.y >> p.z;
+			cout << p << endl;
 			s.lightSources.push_back(p);
 		}
 		sceneFileIn.close();
@@ -850,7 +865,7 @@ void inputSceneParameters(){
 	s.backColor.g = 0;
 	s.backColor.b = 0;
 
-	s.checkerboard.n = Vector(0.0, 0.0, -1.0);
+	s.checkerboard.n = Vector(0.0, 0.0, 1.0);
 	s.checkerboard.pO = Point(1.0, 1.0, 0.0);
 	s.checkerboard.ambient = 0.3; 
 	s.checkerboard.diffuse = 0.4;
@@ -886,7 +901,58 @@ void rayAddDiffuseSpecular(Ray &ray){
 	//for all light src
 	for (vector<Point>::iterator it = s.lightSources.begin(); it != s.lightSources.end(); ++it){
 		Point lightSrc = *it;
+		
+		Point hitPoint = ray.origin + ray.intersection.t * ray.direction;
+		Ray shadowRay = Ray(lightSrc, hitPoint - lightSrc, s.backColor); //we want LI ray
+		if (trace(shadowRay)){
+			Point shadowHitPoint = shadowRay.origin + shadowRay.intersection.t * shadowRay.direction;
+			double dij = abs((shadowHitPoint - lightSrc).magnitude());
+			double D = abs((hitPoint - lightSrc).magnitude());
+			if (compare(dij, D) == -1){
+				//object hitpoint is in shadow
+				//do not add diffuse specular
+				//cout << "SHADOW" << endl;
+				return;
+			}
+		};
 
+		//L = point of lightsrc, H = hitpoint
+		Vector l = hitPoint - lightSrc; //LH
+
+		//if it's not shadowed, add diffuse and specular
+		//add diffuse
+		double lambert = l.dot(ray.intersection.normal);	//cos theta
+		if (lambert > 0) {
+			if (ray.intersection.diffuse > 0) {
+				double diffuse = ray.intersection.diffuse * lambert;
+				ray.intersection.col.r = ray.intersection.col.r + ray.intersection.surfaceCol.r * diffuse;
+				ray.intersection.col.g = ray.intersection.col.g + ray.intersection.surfaceCol.g * diffuse;
+				ray.intersection.col.b = ray.intersection.col.b + ray.intersection.surfaceCol.b * diffuse;
+
+				//ray.intersection.col.r += diffuse*ray.intersection.col.r;
+				//r += diffuse*ir*light.ir;
+				//g += diffuse*ig*light.ig;
+				//b += diffuse*ib*light.ib;
+			}
+			Vector v = hitPoint - pos;//from eye point V to hitpoint H, VH
+			if (ray.intersection.specular > 0) {
+				lambert *= 2;
+				Vector r = (ray.intersection.normal * lambert) - l;
+				double spec = v.dot(r);
+				//float spec = v.dot(lambert*n.x - l.x, lambert*n.y - l.y, lambert*n.z - l.z);
+				if (spec > 0) {					
+					spec = ray.intersection.specular *((double)pow((double)spec, (double)ray.intersection.shininess));
+					//ray.intersection.col.r = ray.intersection.col.r + spec;
+					//ray.intersection.col.g = ray.intersection.col.g + spec;
+					//ray.intersection.col.b = ray.intersection.col.b + spec;
+					ray.intersection.col = ray.intersection.col + spec;
+
+					//r += spec*light.ir;
+					//g += spec*light.ig;
+					//b += spec*light.ib;
+				}
+			}
+		}
 	}
 
 }
@@ -943,7 +1009,12 @@ void raytraceMain(){
 				//Color rawColor = ray.intersection.col;
 				//Color hitColor = hitColor + ray.intersection.reflection * castRay(Ray(hitPoint + 0.03, R, s.backColor), depth + 1);
 				//rawColor = rawColor * ray.intersection.ambient;
-				pixelBuffer[j][i] = ray.intersection.col * ray.intersection.ambient;
+
+				//save the actual color before adding ambient
+				ray.intersection.surfaceCol = ray.intersection.col;
+				ray.intersection.col = ray.intersection.col * ray.intersection.ambient;
+				rayAddDiffuseSpecular(ray);
+				pixelBuffer[j][i] = ray.intersection.col;
 			}
 			else{
 				pixelBuffer[j][i] = s.backColor;
@@ -969,7 +1040,7 @@ void raytraceMain(){
 			image.set_pixel(j, i, r, g, b);
 		}
 	}
-	image.save_image("out.bmp");
+	image.save_image("out_my.bmp");
 }
 
 int main(int argc, char **argv){
