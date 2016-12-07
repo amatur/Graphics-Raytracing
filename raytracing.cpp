@@ -883,21 +883,6 @@ Vector reflect(Vector &I, Vector &N)
 }
 
 
-Color castRay(Ray &ray, int depth){
-	if (depth > s.levelRecursion) return s.backColor;
-	bool traced = trace(ray);
-	Color hitColor = ray.intersection.col;
-	if (traced){
-		//if diffuse type
-
-		//if reflect type
-		Point hitPoint = ray.origin + ray.intersection.t * ray.direction;
-		assert(ray.intersection.normal.magnitude() != 0);
-		Vector R = reflect(ray.direction, ray.intersection.normal);
-		hitColor = hitColor + (castRay(Ray(hitPoint + 0.03, R, s.backColor), depth + 1) * 0.8);
-	}
-	return hitColor;
-}
 
 
 void rayAddDiffuseSpecular(Ray &ray){
@@ -985,6 +970,33 @@ void rayAddDiffuseSpecular(Ray &ray){
 
 }
 
+
+void rayTrace(Ray &ray, int depth){
+	if (depth <= 0) return;
+
+	bool traced = trace(ray);
+	if (traced){
+		ray.intersection.surfaceCol = ray.intersection.col; //save the actual color before adding ambient
+		ray.intersection.col = ray.intersection.col * ray.intersection.ambient;	//add ambient
+		rayAddDiffuseSpecular(ray);	//add diffuse and specular
+
+		//now add reflection
+		Vector R = reflect(ray.direction, ray.intersection.normal);
+		Point hitPoint = ray.origin + ray.intersection.t * ray.direction;
+		Ray reflectedRay = Ray(hitPoint + 0.03, R, s.backColor);
+		rayTrace(reflectedRay, depth - 1);
+		Color colorBroughtByReflectedRay = reflectedRay.intersection.col;
+		ray.intersection.col = ray.intersection.col + colorBroughtByReflectedRay * ray.intersection.reflection;
+		
+		assert(ray.intersection.normal.magnitude() != 0);
+		
+		//return ray.intersection.col;
+	}
+	else{
+		//return s.backColor;
+	}
+}
+
 void raytraceMain(){
 	int rows = s.height;
 	int columns = s.width;
@@ -1024,30 +1036,8 @@ void raytraceMain(){
 		for (int i = 0; i < s.width; i++) {
 			Vector dir = Vector(i*Du.x + j*Dv.x + Vp.x, i*Du.y + j*Dv.y + Vp.y, i*Du.z + j*Dv.z + Vp.z);
 			Ray ray(eye, dir, s.backColor);
-			//castRay(ray, )
-
-			bool traced = trace(ray);			
-			if (traced){
-				//if diffuse type
-
-				//if reflect type
-				//Point hitPoint = ray.origin + ray.intersection.t * ray.direction;
-				//assert(ray.intersection.normal.magnitude() != 0);
-				//Vector R = reflect(dir, ray.intersection.normal);
-				//Color rawColor = ray.intersection.col;
-				//Color hitColor = hitColor + ray.intersection.reflection * castRay(Ray(hitPoint + 0.03, R, s.backColor), depth + 1);
-				//rawColor = rawColor * ray.intersection.ambient;
-
-				//save the actual color before adding ambient
-				ray.intersection.surfaceCol = ray.intersection.col;
-				ray.intersection.col = ray.intersection.col * ray.intersection.ambient;
-				rayAddDiffuseSpecular(ray);
-				pixelBuffer[j][i] = ray.intersection.col;
-			}
-			else{
-				pixelBuffer[j][i] = s.backColor;
-			}
-
+			rayTrace(ray, s.levelRecursion);
+			pixelBuffer[j][i] = ray.intersection.col;
 		}
 	}
 
