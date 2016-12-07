@@ -14,7 +14,7 @@
 using namespace std;
 
 #define pi (2*acos(0.0))
-#define MOVEAHEAD 0.002
+#define MOVEAHEAD 0.2
 bool debug = true;
 
 
@@ -163,6 +163,7 @@ Vector u(0, 0, 1), l(-1 / sqrt(2.0), -1 / sqrt(2.0), 0), r(-1 / sqrt(2.0), 1 / s
 
 /** ---------- RAY TRACE related -------------- **/
 bitmap_image image;
+bitmap_image texture;
 void raytraceMain();
 // -------------------------------------------- //
 
@@ -261,12 +262,19 @@ public:
 				Point iP = ray.origin + (ray.direction * t);
 				int x = iP.x;
 				int y = iP.y;
-				if (abs(x % 10) >= 5 && abs(y % 10) >= 5 || abs(x % 10)  < 5 && abs(y % 10)  < 5){
-					ray.intersection.set(t, n, Color(0, 0, 0), ambient, diffuse, specular, reflection, shininess);
+				int XHS = texture.width() / 4;
+				int XFS = XHS * 2;
+				int YHS = texture.height() / 4;
+				int YFS = YHS * 2;
+				unsigned char r,g, b;
+				texture.get_pixel(abs(x % XFS), abs(y % YFS), r, g, b);
+				ray.intersection.set(t, n, Color(r / 255.0, g / 255.0, b / 255.0), ambient, diffuse, specular, reflection, shininess);
+				/*if (abs(x % FS) >= HS && abs(y % FS >= HS) || abs(x % FS)  < HS && abs(y % FS)  < HS){
+					ray.intersection.set(t, n, Color(-, 0, 0), ambient, diffuse, specular, reflection, shininess);
 				}
 				else{
 					ray.intersection.set(t, n, Color(1.0, 1.0, 1.0), ambient, diffuse, specular, reflection, shininess);
-				}
+				}*/
 				return true;
 			}
 		}
@@ -289,7 +297,7 @@ public:
 		}
 
 		t = v - ((double)sqrt(t));
-		if ((t > ray.intersection.t) || (t < 0)){
+		if (t > ray.intersection.t){
 			return false;
 		}
 
@@ -316,10 +324,7 @@ public:
 		normal = normal.normalize();
 		if (Vector(0.0, 0.0, 1.0).dot(normal) < 0){	// cos < 0 means obtuse angle (>90 degree)
 			normal = normal * (-1);
-		}
-		
-		//double denom = (p1 - p0).cross(p)
-		//a =			
+		}		
 		this->ambient = ambient;
 		this->diffuse = diffuse;
 		this->specular = specular;
@@ -330,14 +335,7 @@ public:
 	}
 	bool intersect(Ray& ray)
 	{
-		//Vector e0 = p1 - p0;
-		//Vector e1 = p2 - p0;
-		//Vector N = e0.cross(e1);
-		//N = N.normalize();
-		//
-		//// implementing the single/double sided feature
-		if (ray.direction.dot(normal) < 0){
-			//normal = normal * (-1); // it was back-facing surface
+		if (ray.direction.dot(normal) < 0){ // it's back-facing surface
 			return false;
 		}
 
@@ -348,14 +346,11 @@ public:
 		}
 		Vector diff = p0 - ray.origin;
 		double t = diff.dot(normal) / denom;
-		if (t < 0 || t > ray.intersection.t){
+		if (t < 0 || t > ray.intersection.t){	//t<0 triangle behind ray
 			return false;
 		}			
-		
-		// check if the triangle is in behind the ray
-		if (t < 0) return false; // the triangle is behind
 
-		// compute the intersection point using equation 1
+		// calc intersection point
 		Point P = ray.origin + t * ray.direction;
 
 		// Step 2: inside-outside test
@@ -380,7 +375,7 @@ public:
 		if (normal.dot(C) < 0) return false; // P is on the right side;
 
 		ray.intersection.set(t, normal, this->color, ambient, diffuse, specular, reflection, shininess);
-		return true; // this ray hits the triangle
+		return true;
 	}
 };
 class PyramidBase : public Obj
@@ -477,10 +472,8 @@ public:
 Scene s;
 
 bool trace(Ray &r) {
-	//double MAX_T = 9999999999999;
-	//r.intersection.t = MAX_T;
 	bool foundTraced = false;
-	
+
 	for (vector<Pyramid>::iterator it = s.pyramids.begin(); it != s.pyramids.end(); ++it){
 		Pyramid p = *it;
 		for (int i = 0; i < 4; i++)
@@ -502,11 +495,11 @@ bool trace(Ray &r) {
 	}
 
 	
-
 	Board object = s.checkerboard;
 	if (object.intersect(r) == true){
 		foundTraced = true;
 	}
+	
 
 	return (foundTraced);
 }
@@ -787,6 +780,7 @@ void init(){
 }
 
 void inputSceneParameters(){
+	texture = bitmap_image("texture.bmp");
 	ifstream sceneFileIn("description.txt");
 	string line;
 
@@ -864,7 +858,11 @@ void inputSceneParameters(){
 
 	s.checkerboard.n = Vector(0.0, 0.0, 1.0);
 	s.checkerboard.pO = Point(1.0, 1.0, 0.0);
-	s.checkerboard.ambient = 0.3; 
+	/*s.checkerboard.ambient = 0.3; 
+	s.checkerboard.diffuse = 0.4;
+	s.checkerboard.specular = 0.0;
+	s.checkerboard.reflection = 0.3;*/
+	s.checkerboard.ambient = 0.3;
 	s.checkerboard.diffuse = 0.4;
 	s.checkerboard.specular = 0.0;
 	s.checkerboard.reflection = 0.3;
@@ -947,9 +945,12 @@ void rayAddDiffuseSpecular(Ray &ray){
 				//float spec = v.dot(lambert*n.x - l.x, lambert*n.y - l.y, lambert*n.z - l.z);
 				if (spec > 0) {					
 					spec = ray.intersection.specular *((double)pow((double)spec, (double)ray.intersection.shininess));
-					ray.intersection.col.r = ray.intersection.col.r + spec * ray.intersection.surfaceCol.r;
-					ray.intersection.col.g = ray.intersection.col.g + spec * ray.intersection.surfaceCol.g;
-					ray.intersection.col.b = ray.intersection.col.b + spec * ray.intersection.surfaceCol.b;
+					ray.intersection.col.r = ray.intersection.col.r + spec*ray.intersection.col.r;
+					if (ray.intersection.col.r > 1) ray.intersection.col.r = 1;
+					ray.intersection.col.g = ray.intersection.col.g + spec*ray.intersection.col.g;
+					if (ray.intersection.col.r > 1) ray.intersection.col.g = 1;
+					ray.intersection.col.b = ray.intersection.col.b + spec*ray.intersection.col.b;
+					if (ray.intersection.col.r > 1) ray.intersection.col.b = 1;
 					//ray.intersection.col = ray.intersection.col + spec;
 
 					//r += spec*light.ir;
@@ -1028,6 +1029,8 @@ void raytraceMain(){
 	}
 
 	//draw output to bmp file
+	
+	
 	image = bitmap_image(s.width, s.height);
 	for (int i = 0; i < rows; i++)
 	{
