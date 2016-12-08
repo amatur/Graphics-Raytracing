@@ -265,7 +265,7 @@ public:
 				int YFS = YHS * 2;
 				unsigned char r, g, b;
 				texture.get_pixel(abs(x % XFS), abs(y % YFS), r, g, b);
-				ray.intersection.set(t, n, Color(r / 255.0, g / 255.0, b / 255.0), ambient, diffuse, specular, reflection, shininess);
+				ray.intersection.set(t + 0.1, n, Color(r / 255.0, g / 255.0, b / 255.0), ambient, diffuse, specular, reflection, shininess);
 				//if (abs(x % 10) >= 5 && abs(y % 10) >= 5 || abs(x % 10)  < 5 && abs(y % 10)  < 5){
 				//	//ray.intersection.col = Color(0, 0, 0);
 				//	ray.intersection.set(t, n, Color(0, 0, 0), ambient, diffuse, specular, reflection, shininess);
@@ -398,7 +398,7 @@ public:
 		C = edge2.cross(vp2);
 		if (normal.dot(C) < 0) return false; // P is on the right side;
 
-		ray.intersection.set(t, normal, this->color, ambient, diffuse, specular, reflection, shininess);
+		ray.intersection.set(t + 0.1, normal, this->color, ambient, diffuse, specular, reflection, shininess);
 		return true; // this ray hits the triangle
 	}
 };
@@ -441,7 +441,7 @@ public:
 					//ray.intersection.reflection = this->reflection;
 					//ray.intersection.t = t;
 					//ray.intersection.col = this->color;
-					ray.intersection.set(t, this->n, this->color, ambient, diffuse, specular, reflection, shininess);
+					ray.intersection.set(t + 0.1, this->n, this->color, ambient, diffuse, specular, reflection, shininess);
 					return true;
 				}
 			}
@@ -668,7 +668,7 @@ void keyboardListener(unsigned char key, int x, int y){
 		u = u.rotate(ROTATE_SPEED, l);
 		break;
 	case '0':
-		//printCamera();
+		printCamera();
 		cout << l << endl;
 		cout << pos << endl;
 		cout << u << endl;
@@ -995,7 +995,7 @@ void rayTrace(Ray &ray, int depth){
 		//now add reflection
 		Vector R = reflect(ray.direction, ray.intersection.normal);
 		Point hitPoint = ray.origin + ray.intersection.t * ray.direction;
-		Ray reflectedRay = Ray(hitPoint + 0.03, R, s.backColor);
+		Ray reflectedRay = Ray(hitPoint + 0.03 * R.normalize(), R, s.backColor);
 		rayTrace(reflectedRay, depth - 1);
 		Color colorBroughtByReflectedRay = reflectedRay.intersection.col;
 		ray.intersection.col = ray.intersection.col + colorBroughtByReflectedRay * ray.intersection.reflection;
