@@ -1,0 +1,7 @@
+-0.707107 -0.707107 0
+125.456 74.5442 45
+0 0 1
+Assertion failed: mag != 0, file d:\tasnim's files\wip\raytrace\raytracing.cpp,
+line 84
+
+
