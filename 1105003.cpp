@@ -1,5 +1,6 @@
 #define _SCL_SECURE_NO_WARNINGS
-
+#include <windows.h> //needed for codeblocks
+#include <glut.h> //needed for codeblocks
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
@@ -10,7 +11,7 @@
 #include <sstream>
 #include <vector>
 #include <assert.h>
-#include <GL\glut.h>
+//#include <GL\glut.h> //for visual studio 2013
 #include "bitmap_image.hpp"
 using namespace std;
 
@@ -18,7 +19,7 @@ using namespace std;
 bool debug = false;
 double EPSILON = 0.000001;
 double MOVEAHEAD = 0.3;
-bool TEXTUREMODE = false;
+bool TEXTURE_ENABLED = true;
 
 /** -------- Epsilon check ------------ **/
 double removeNegZero(double theDouble, int precision){
@@ -32,7 +33,7 @@ double removeNegZero(double theDouble, int precision){
 		return theDouble;
 	}
 }
-int compare(double v1, double v2, double e = EPSILON){
+int compare(double v1, double v2, double e = 0.1){
 	v1 = removeNegZero(v1, 7);
 	v2 = removeNegZero(v2, 7);
 
@@ -58,6 +59,7 @@ public:
 		this->z = z;
 	}
 
+	//pass in a vector, pass in a scalar, return the product
 	friend Vector operator*(float num, Vector const &vec)
 	{
 		return Vector(vec.x * num, vec.y * num, vec.z * num);
@@ -85,7 +87,7 @@ public:
 		if (mag != 0){
 			;
 		}
-		if (mag == 0) return mag;
+		if(mag == 0) return mag;
 		return Vector(x / mag, y / mag, z / mag);
 	}
 
@@ -142,6 +144,7 @@ public:
 	friend ostream &operator<<(ostream &output, const Point &p)
 	{
 		double prec = output.precision();
+		//output << removeNegZero(p.x, prec) << " " << removeNegZero(p.y, prec) << " " << removeNegZero(p.z, prec);
 		output << (p.x) << " " << (p.y) << " " << (p.z);
 		return output;
 	}
@@ -160,6 +163,7 @@ double UP_SPEED = 2;
 Point pos(0, -140, 10);
 Vector u(0, 0, 1), l(0, 1, 0), r(1, 0, 0);
 // -------------------------------------------- //
+
 
 /** ---------- RAY TRACE related -------------- **/
 bitmap_image image;
@@ -232,6 +236,7 @@ public:
 	Point origin;
 	Vector direction;
 	Intersection intersection;
+
 	Ray(Point eye, Vector dir, Color backColor) {
 		origin = eye;
 		direction = dir.normalize();
@@ -246,6 +251,7 @@ public:
 	Color color;
 	double ambient, diffuse, specular, reflection, shininess;
 };
+
 class Board : public Obj{
 public:
 	//plane is in point normal form
@@ -282,7 +288,7 @@ public:
 				int YFS = YHS * 2;
 
 				//texturing
-				if (TEXTUREMODE){
+				if (TEXTURE_ENABLED){
 					unsigned char r, g, b;
 					int boardXindex = abs(x % XFS);
 					int boardYindex = abs(y % YFS);
@@ -306,6 +312,7 @@ public:
 		return false;
 	}
 };
+
 class Sphere : public Obj{
 public:
 	double radius;
@@ -315,8 +322,11 @@ public:
 	bool intersect(Ray &ray) {
 		Vector EC = center - ray.origin;    //E: eye/origin, C: Centre
 		double v = ray.direction.dot(EC);
-		double t = radius * radius + v * v - EC.x * EC.x - EC.y * EC.y - EC.z * EC.z;
-		t = v - ((double)sqrt(t));
+        double t = radius * radius + v * v - EC.x * EC.x - EC.y * EC.y - EC.z * EC.z;
+        if (t < 0){
+			return false;
+		}
+        t = v - ((double)sqrt(t));
 		if (t > ray.intersection.t || t < 0){
 			return false;
 		}
@@ -917,10 +927,6 @@ void rayAddDiffuseSpecular(Ray &ray, Vector &R){
 				ray.intersection.col.g = ray.intersection.col.g + ray.intersection.surfaceCol.g * diffuse;
 				ray.intersection.col.b = ray.intersection.col.b + ray.intersection.surfaceCol.b * diffuse;
 				ray.intersection.col = ray.intersection.col.clamp();
-				//ray.intersection.col.r += diffuse*ray.intersection.col.r;
-				//r += diffuse*ir*light.ir;
-				//g += diffuse*ig*light.ig;
-				//b += diffuse*ib*light.ib;
 			}
 
 		}
@@ -936,18 +942,14 @@ void rayAddDiffuseSpecular(Ray &ray, Vector &R){
 				double d = vvv.magnitude();
 			}
 			double spec = vvv.dot(R.normalize());
-			//float spec = v.dot(lambert*n.x - l.x, lambert*n.y - l.y, lambert*n.z - l.z);
-			if (spec > 0) {
-				spec = ray.intersection.specular *((double)pow((double)spec, 70));
-				ray.intersection.col.r = ray.intersection.col.r + spec;
-				ray.intersection.col.g = ray.intersection.col.g + spec;
-				ray.intersection.col.b = ray.intersection.col.b + spec;
-				ray.intersection.col = ray.intersection.col.clamp();
-				//ray.intersection.col = ray.intersection.col + spec;
 
-				//r += spec*light.ir;
-				//g += spec*light.ig;
-				//b += spec*light.ib;
+			if (spec > 0) {
+				spec = ray.intersection.specular *((double)pow((double)spec, ray.intersection.shininess));
+				//ray.intersection.col.r = ray.intersection.col.r + spec;
+				//ray.intersection.col.g = ray.intersection.col.g + spec;
+				//ray.intersection.col.b = ray.intersection.col.b + spec;
+				ray.intersection.col = ray.intersection.col + spec;
+				ray.intersection.col = ray.intersection.col.clamp();
 			}
 		}
 
