@@ -162,11 +162,8 @@ double UP_SPEED = 2;
 //Point pos(100, 100, -2);
 //Vector u(0, 0, 1), l(-1 / sqrt(2.0), -1 / sqrt(2.0), 0), r(-1 / sqrt(2.0), 1 / sqrt(2.0), 0);
 
-//Point pos(-129.502, - 259.904 ,61.0059);
-//Vector u(-0.0388931, - 0.0350195 ,0.99863), l(0.543655, 0.837783, 0.0505525), r(0.838405 ,- 0.544876, 0.0135455);
-
-Point pos(-45.6892, - 109.179 ,38.7756);
-Vector u(0.103783, 0.00266189 ,0.994597), l(0.502733 ,0.862703 ,- 0.0547672), r(0.858187, - 0.5057, - 0.0881952);
+Point pos(0, -140, 10);
+Vector u(0, 0, 1), l(0, 1, 0), r(1, 0, 0);
 
 
 // -------------------------------------------- //
@@ -293,20 +290,20 @@ public:
 				int y = iP.y;
 				int w = texture.width();
 				int h = texture.height();
-				int XHS = 24;
+				int XHS = 5;
 				int XFS = XHS * 2;
-				int YHS = 24;
+				int YHS = 5;
 				int YFS = YHS * 2;
 				unsigned char r, g, b;
-				texture.get_pixel(abs(x % XFS)%w, abs(y % YFS)%h, r, g, b);
-				ray.intersection.set(t + 0.01, n, Color(r / 255.0, g / 255.0, b / 255.0), ambient, diffuse, specular, reflection, shininess);
+				//texture.get_pixel(abs(x % XFS)%w, abs(y % YFS)%h, r, g, b);
+				//ray.intersection.set(t + 0.01, n, Color(r / 255.0, g / 255.0, b / 255.0), ambient, diffuse, specular, reflection, shininess);
 				
-				/*if (abs(x % 10) >= 5 && abs(y % 10) >= 5 || abs(x % 10)  < 5 && abs(y % 10)  < 5){
+				if (abs(x % XFS) >= XHS && abs(y % YFS) >= YHS || abs(x % XFS)  < XHS && abs(y % YFS)  < YHS){
 					ray.intersection.set(t, n, Color(0, 0, 0), ambient, diffuse, specular, reflection, shininess);
 				}
 				else{
 					ray.intersection.set(t, n, Color(1.0, 1.0, 1.0), ambient, diffuse, specular, reflection, shininess);
-				}*/
+				}
 
 				return true;
 				//ray.intersection.obj = *this;
@@ -323,17 +320,8 @@ public:
 	Vector normal;
 
 	bool intersect(Ray &ray) {
-		//float dx = center.x - ray.origin.x;
-		//float dy = center.y - ray.origin.y;
-		//float dz = center.z - ray.origin.z;
 		Vector d = center - ray.origin;
 		double v = ray.direction.dot(d);
-
-		// Do the following quick check to see if there is even a chance
-		// that an intersection here might be closer than a previous one
-		//if (v - radius > ray.intersection.t){
-		//	return false;
-		//}
 
 		// Test if the ray actually intersects the sphere
 		double t = radius * radius + v * v - d.x * d.x - d.y * d.y - d.z * d.z;
@@ -628,10 +616,10 @@ void drawPyramid(Pyramid& p){
 }
 void drawScene(){
 	glPushMatrix(); {
-		glTranslatef(-100, -100, 0);
+		glTranslatef(-150, -150, 0);
 		glBegin(GL_QUADS); {
-			for (unsigned int x = 0; x < 100; ++x){
-				for (unsigned int y = 0; y < 100; ++y)
+			for (unsigned int x = 0; x < 150; ++x){
+				for (unsigned int y = 0; y < 150; ++y)
 				{
 					if (abs((int)(x + y)) % 2) //modulo 2
 						glColor3f(1.0f, 1.0f, 1.0f); //white
@@ -723,7 +711,7 @@ void keyboardListener(unsigned char key, int x, int y){
 		u = u.rotate(ROTATE_SPEED, l);
 		break;
 	case '0':
-		//printCamera();
+		printCamera();
 		cout << l << endl;
 		cout << pos << endl;
 		cout << u << endl;
@@ -886,7 +874,7 @@ void inputSceneParameters(){
 				Sphere o;
 				o.name = "sphere";
 				getline(sceneFileIn, line);	//1. center
-				stringstream(line) >> o.center.x >> o.center.z >> o.center.y;
+				stringstream(line) >> o.center.x >> o.center.y >> o.center.z;
 				getline(sceneFileIn, line);	//2. radius		
 				stringstream(line) >> o.radius;
 				getline(sceneFileIn, line);	//-3: color
@@ -902,7 +890,7 @@ void inputSceneParameters(){
 				Color color;
 				double width, height, ambient, diffuse, specular, reflection, shininess;
 				getline(sceneFileIn, line);	//1. lowest point co-ordinate
-				stringstream(line) >> lowestPoint.x >> lowestPoint.z >> lowestPoint.y;
+				stringstream(line) >> lowestPoint.x >> lowestPoint.y >> lowestPoint.z;
 				getline(sceneFileIn, line);	//2. width, height
 				stringstream(line) >> width >> height;
 				getline(sceneFileIn, line);	//-3: color
@@ -926,7 +914,7 @@ void inputSceneParameters(){
 		{
 			Point p;
 			getline(sceneFileIn, line); //pos
-			stringstream(line) >> p.x >> p.z >> p.y;
+			stringstream(line) >> p.x >> p.y >> p.z;
 			cout << p << endl;
 			s.lightSources.push_back(p);
 		}
@@ -938,10 +926,10 @@ void inputSceneParameters(){
 
 	s.checkerboard.n = Vector(0.0, 0.0, 1.0);
 	s.checkerboard.pO = Point(1.0, 1.0, 0.0);
-	s.checkerboard.ambient = 0.2;
+	s.checkerboard.ambient = 0.3;
 	s.checkerboard.diffuse = 0.4;
 	s.checkerboard.specular = 0.0;
-	s.checkerboard.reflection = 0.4;
+	s.checkerboard.reflection = 0.3;
 	s.fov = 45;
 }
 
@@ -964,7 +952,7 @@ void rayAddDiffuseSpecular(Ray &ray, Vector &R){
 			if (compare(dij, D) == -1){
 				//object hitpoint is in shadow
 				//do not add diffuse specular
-				return;
+				continue;
 			}
 		};
 
