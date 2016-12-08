@@ -14,7 +14,7 @@
 using namespace std;
 
 #define pi (2*acos(0.0))
-bool debug = true;
+bool debug = false;
 
 
 /** -------- Epsilon check ------------ **/
@@ -290,14 +290,21 @@ public:
 				int y = iP.y;
 				int w = texture.width();
 				int h = texture.height();
-				int XHS = 5;
+				int XHS = 24;
 				int XFS = XHS * 2;
-				int YHS = 5;
+				int YHS = 24;
 				int YFS = YHS * 2;
+
+				//texturing
 				unsigned char r, g, b;
-				//texture.get_pixel(abs(x % XFS)%w, abs(y % YFS)%h, r, g, b);
-				//ray.intersection.set(t + 0.01, n, Color(r / 255.0, g / 255.0, b / 255.0), ambient, diffuse, specular, reflection, shininess);
+				int boardXindex = abs(x % XFS);
+				int boardYindex = abs(y % YFS);
+				int textureX = (boardXindex / (double)(XFS))*w;
+				int textureY = (boardYindex / (double)(YFS))*h;
+				texture.get_pixel(textureX, textureY, r, g, b);
+				ray.intersection.set(t, n, Color(r / 255.0, g / 255.0, b / 255.0), ambient, diffuse, specular, reflection, shininess);
 				
+				//checkerboard
 				if (abs(x % XFS) >= XHS && abs(y % YFS) >= YHS || abs(x % XFS)  < XHS && abs(y % YFS)  < YHS){
 					ray.intersection.set(t, n, Color(0, 0, 0), ambient, diffuse, specular, reflection, shininess);
 				}
@@ -306,10 +313,8 @@ public:
 				}
 
 				return true;
-				//ray.intersection.obj = *this;
 			}
 		}
-
 		return false;
 	}
 };
@@ -337,7 +342,7 @@ public:
 		}
 
 		Point Phit = ray.origin + t*ray.direction;
-		ray.intersection.set(t + 0.1, (Phit - center).normalize(), this->color, ambient, diffuse, specular, reflection, shininess);
+		ray.intersection.set(t, (Phit - center).normalize(), this->color, ambient, diffuse, specular, reflection, shininess);
 		return true;
 	}
 };
@@ -352,7 +357,6 @@ public:
 		this->p2 = p2;
 		this->color = c;
 		normal = (p2 - p1).cross(p2 - p0); // N
-		//normal = normal * (-1);
 		normal = normal.normalize();
 		if (Vector(0.0, 0.0, 1.0).dot(normal) < 0){	// cos < 0 means obtuse angle (>90 degree)
 			normal = normal * (-1);
@@ -417,7 +421,7 @@ public:
 		C = edge2.cross(vp2);
 		if (normal.dot(C) < 0) return false; // P is on the right side;
 
-		ray.intersection.set(t + 0.1, normal, this->color, ambient, diffuse, specular, reflection, shininess);
+		ray.intersection.set(t, normal, this->color, ambient, diffuse, specular, reflection, shininess);
 		return true; // this ray hits the triangle
 	}
 };
@@ -456,10 +460,7 @@ public:
 				Point iP = ray.origin + (ray.direction * t);
 				int x = iP.x;
 				int y = iP.y;
-				if (x >= pO.x - 0.01 && x <= pO.x + width + 0.01 && y >= pO.y - 0.01 && y <= pO.y + width + 0.01){
-					//ray.intersection.reflection = this->reflection;
-					//ray.intersection.t = t;
-					//ray.intersection.col = this->color;
+				if (x > pO.x  && x < pO.x + width  && y > pO.y  && y < pO.y + width ){
 					ray.intersection.set(t , this->n, this->color, ambient, diffuse, specular, reflection, shininess);
 					return true;
 				}
@@ -515,8 +516,6 @@ public:
 Scene s;
 
 bool trace(Ray &r) {
-	//double MAX_T = 9999999999999;
-	//r.intersection.t = MAX_T;
 	bool foundTraced = false;
 
 	for (vector<Sphere>::iterator it = s.spheres.begin(); it != s.spheres.end(); ++it){
@@ -593,9 +592,10 @@ void drawPyramid(Pyramid& p){
 	glBegin(GL_TRIANGLES); {
 		for (int i = 0; i < 4; i++)
 		{
-			glColor3f(1.0f, 0.0f, 0.0f); glVertex3f(p.t[i].p0.x, p.t[i].p0.y, p.t[i].p0.z);
-			glColor3f(0.0f, 1.0f, 0.0f); glVertex3f(p.t[i].p1.x, p.t[i].p1.y, p.t[i].p1.z);
-			glColor3f(0.0f, 0.0f, 1.0f); glVertex3f(p.t[i].p2.x, p.t[i].p2.y, p.t[i].p2.z);
+			Color c = p.color;
+			glColor3f(c.r, c.g / 2, c.b / 2); glVertex3f(p.t[i].p0.x, p.t[i].p0.y, p.t[i].p0.z);
+			glColor3f(c.r/2, c.g/2, c.b); glVertex3f(p.t[i].p1.x, p.t[i].p1.y, p.t[i].p1.z);
+			glColor3f(c.r/2, c.g, c.b/2); glVertex3f(p.t[i].p2.x, p.t[i].p2.y, p.t[i].p2.z);
 		}
 	}glEnd();
 
@@ -643,7 +643,7 @@ void drawScene(){
 		glPushMatrix(); {
 			glColor3f(1, 1, 1);
 			glTranslatef(lightSrc.x, lightSrc.y, lightSrc.z); //move to axis center
-			glutSolidSphere(0.4, 100, 5);
+			glutSolidSphere(1, 100, 5);
 		}
 		glPopMatrix();
 	}
@@ -711,30 +711,27 @@ void keyboardListener(unsigned char key, int x, int y){
 		u = u.rotate(ROTATE_SPEED, l);
 		break;
 	case '0':
+		cout << "Rendering... please wait" << endl;
 		printCamera();
-		cout << l << endl;
-		cout << pos << endl;
-		cout << u << endl;
+		if(debug) cout << l << endl;
+		if (debug) cout << pos << endl;
+		if (debug) cout << u << endl;
 		raytraceMain();
-		cout << "Drawn." << endl;
-
+		cout << "FINISHED!\n" <<endl;
 		break;
 	case 'g':
 		drawgrid = 1 - drawgrid;
 		drawaxes = 1 - drawaxes;
 		break;
-
 	default:
 		break;
 	}
 }
 void specialKeyListener(int key, int x, int y){
 	switch (key){
-
 		//1. Move Forward
 	case GLUT_KEY_UP:		// up arrow key
 		pos = pos + UP_SPEED * l;
-
 		break;
 		//2. Move Backward
 	case GLUT_KEY_DOWN:		//down arrow key
@@ -915,7 +912,7 @@ void inputSceneParameters(){
 			Point p;
 			getline(sceneFileIn, line); //pos
 			stringstream(line) >> p.x >> p.y >> p.z;
-			cout << p << endl;
+			if (debug) cout << p << endl;
 			s.lightSources.push_back(p);
 		}
 		sceneFileIn.close();
@@ -927,9 +924,9 @@ void inputSceneParameters(){
 	s.checkerboard.n = Vector(0.0, 0.0, 1.0);
 	s.checkerboard.pO = Point(1.0, 1.0, 0.0);
 	s.checkerboard.ambient = 0.3;
-	s.checkerboard.diffuse = 0.4;
+	s.checkerboard.diffuse = 0.3;
 	s.checkerboard.specular = 0.0;
-	s.checkerboard.reflection = 0.3;
+	s.checkerboard.reflection = 0.4;
 	s.fov = 45;
 }
 
@@ -939,10 +936,9 @@ Vector reflect(Vector &I, Vector &N)
 }
 
 void rayAddDiffuseSpecular(Ray &ray, Vector &R){
-	//for all light src
+
 	for (vector<Point>::iterator it = s.lightSources.begin(); it != s.lightSources.end(); ++it){
 		Point lightSrc = *it;
-
 		Point hitPoint = ray.origin + ray.intersection.t * ray.direction;
 		Ray shadowRay = Ray(lightSrc, hitPoint - lightSrc, s.backColor); //we want LI ray
 		if (trace(shadowRay)){
@@ -955,8 +951,6 @@ void rayAddDiffuseSpecular(Ray &ray, Vector &R){
 				continue;
 			}
 		};
-
-
 
 		//L = point of lightsrc, H = hitpoint
 		Vector lll = lightSrc - hitPoint; //HL
@@ -1072,22 +1066,29 @@ void raytraceMain(){
 
 	// Compute viewing matrix that maps a
 	// screen coordinate to a ray direction
-	Vector Du = l.cross(u).normalize();
-	Vector Dv = l.cross(Du).normalize();
 	double fov = s.fov;
-	double fl = (double)(s.width / (2 * tan((0.5*fov)*pi / 180.0)));
-	Vector Vp = l.normalize();
-	Vp.x = Vp.x*fl - 0.5f*(s.width*Du.x + s.height*Dv.x);
-	Vp.y = Vp.y*fl - 0.5f*(s.width*Du.y + s.height*Dv.y);
-	Vp.z = Vp.z*fl - 0.5f*(s.width*Du.z + s.height*Dv.z);
+	double unitPixelLength = (double)( (2 * l.magnitude() * tan((0.5*fov)*pi / 180.0)) / s.width);
+	Point look = eye + l;
+	u = u.normalize();
+	r = r.normalize();
+	Vector moveUp = u * unitPixelLength;
+	Vector moveRight = r * unitPixelLength;
+	Point topmid = look + moveUp * (s.width / 2);
+	Point topleft = topmid - moveRight * (s.width / 2);
 
+	Vector dir = topleft - eye;
 	for (int j = 0; j < s.height; j++) {
-		for (int i = 0; i < s.width; i++) {
-			Vector dir = Vector(i*Du.x + j*Dv.x + Vp.x, i*Du.y + j*Dv.y + Vp.y, i*Du.z + j*Dv.z + Vp.z);
+		for (int i = 0; i < s.width; i++) {			
 			Ray ray(eye, dir, s.backColor);
 			rayTrace(ray, s.levelRecursion);
 			pixelBuffer[j][i] = ray.intersection.col;
+			//if (i < s.width - 1){
+				dir = dir + moveRight;
+			//}
+			
 		}
+		dir = dir - moveRight * (s.width );
+		dir = dir - moveUp;
 	}
 
 	//draw output to bmp file
