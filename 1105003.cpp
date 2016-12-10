@@ -162,6 +162,8 @@ double UP_SPEED = 2;
 //l, pos, u, r
 Point pos(0, -140, 10);
 Vector u(0, 0, 1), l(0, 1, 0), r(1, 0, 0);
+//Point pos(100, 100, 2);
+//Vector u(0, 0, 1), l(-1 / sqrt(2.0), -1 / sqrt(2.0), 0), r(-1 / sqrt(2.0), 1 / sqrt(2.0), 0);
 // -------------------------------------------- //
 
 
@@ -192,6 +194,7 @@ public:
 	}
 	Color clamp(){
 		Color c(*this);
+		//return c;
 		if (r > 1) c.r = 1;
 		if (g > 1) c.g = 1;
 		if (b > 1) c.b = 1;
@@ -263,14 +266,6 @@ public:
 		// for ray: p = rO + rD * t
 		// for plane: (p - pO).n = 0
 
-		// assuming vectors are all normalized, breakpoints for debugging
-		if (compare(ray.direction.magnitude(), 1) != 0){
-			;
-		}
-		if (compare(n.magnitude(), 1) != 0){
-			;
-		}
-
 		double denom = n.dot(ray.direction);
 		// if dot product is 0 then no intersection
 		if (abs(denom) > EPSILON) {
@@ -282,29 +277,42 @@ public:
 				int y = iP.y;
 				int w = texture.width();
 				int h = texture.height();
-				int XHS = 24;
+				int XHS = 10;
 				int XFS = XHS * 2;
-				int YHS = 24;
+				int YHS = 10;
 				int YFS = YHS * 2;
 
 				//texturing
 				if (TEXTURE_ENABLED){
 					unsigned char r, g, b;
-					int boardXindex = abs(x % XFS);
-					int boardYindex = abs(y % YFS);
-					int textureX = (boardXindex / (double)(XFS))*w;
-					int textureY = (boardYindex / (double)(YFS))*h;
+
+					double xrem = (iP.x - floor(iP.x / XFS) * XFS) / XFS;
+					double yrem = (iP.y - floor(iP.y / YFS) * YFS) / YFS;
+
+                    if (xrem < 0) xrem *= -1;;
+                    if (yrem < 0) yrem *= -1;
+
+					int textureX = (xrem)*w;
+					int textureY = (yrem)*h;
+
+					//cout << textureX << " " << textureY << endl;
+
 					texture.get_pixel(textureX, textureY, r, g, b);
 					ray.intersection.set(t, n, Color(r / 255.0, g / 255.0, b / 255.0), ambient, diffuse, specular, reflection, shininess);
 				}
 				else{
 					//checkerboard
-					if (abs(x % XFS) >= XHS && abs(y % YFS) >= YHS || abs(x % XFS)  < XHS && abs(y % YFS)  < YHS){
+					int xr = abs(x % XFS);
+					int yr = abs(y % YFS);
+					if ( x < 0 ) xr = XFS - xr;
+					if ( y < 0 ) yr = YFS - yr;
+					if (xr >= XHS && yr >= YHS || xr < XHS && yr < YHS){
 						ray.intersection.set(t, n, Color(0, 0, 0), ambient, diffuse, specular, reflection, shininess);
 					}
 					else{
 						ray.intersection.set(t, n, Color(1.0, 1.0, 1.0), ambient, diffuse, specular, reflection, shininess);
 					}
+
 				}
 				return true;
 			}
@@ -372,16 +380,15 @@ public:
 			return false;
 		}
 		Point Phit = ray.origin + t * ray.direction;
-		//inside-outside test
-		// edge 0
+
+		//inside triangle or not
 		Vector AH = Phit - p0; //H: hit point, A: p0
-		if (normal.dot(AB.cross(AH)) < 0) return false; // Phit is outside triangle
-		// edge 1
 		Vector BH = Phit - p1;
-		if (normal.dot(BC.cross(BH)) < 0) return false; // Phit is outside triangle
-		// edge 2
 		Vector CH = Phit - p2;
-		if (normal.dot(CA.cross(CH)) < 0) return false; // Phit is outside triangle
+
+		if (normal.dot(AB.cross(AH)) < 0 || normal.dot(BC.cross(BH)) < 0 || normal.dot(CA.cross(CH)) < 0){
+		    return false; // Phit is outside triangle
+        }
 		ray.intersection.set(t, normal, this->color, ambient, diffuse, specular, reflection, shininess);
 		return true;
 	}
@@ -600,7 +607,7 @@ void drawScene(){
 		glPushMatrix(); {
 			glColor3f(1, 1, 1);
 			glTranslatef(lightSrc.x, lightSrc.y, lightSrc.z); //move to axis center
-			glutSolidSphere(1, 100, 5);
+			glutSolidSphere(10, 100, 5);
 		}
 		glPopMatrix();
 	}
@@ -668,6 +675,17 @@ void keyboardListener(unsigned char key, int x, int y){
 		u = u.rotate(ROTATE_SPEED, l);
 		break;
 	case '0':
+	    TEXTURE_ENABLED = false;
+	    cout << "Rendering... please wait" << endl;
+		//printCamera();
+		if (debug) cout << l << endl;
+		if (debug) cout << pos << endl;
+		if (debug) cout << u << endl;
+		raytraceMain();
+		cout << "FINISHED!\n" << endl;
+		break;
+    case '9':
+        TEXTURE_ENABLED = true;
 		cout << "Rendering... please wait" << endl;
 		//printCamera();
 		if (debug) cout << l << endl;
@@ -910,14 +928,6 @@ void rayAddDiffuseSpecular(Ray &ray, Vector &R){
 
 		//if it's not shadowed, add diffuse and specular
 		//add diffuse
-		if (compare(lll.magnitude(), 1) != 0){
-			;
-			double d = (lll.magnitude());
-		}
-		if (compare(ray.intersection.normal.magnitude(), 1) != 0){
-			;
-			double d = ray.intersection.normal.magnitude();
-		}
 
 		double lambert = lll.dot(ray.intersection.normal);	//cos theta
 		if (lambert > 0) {
@@ -932,29 +942,22 @@ void rayAddDiffuseSpecular(Ray &ray, Vector &R){
 		}
 
 		if (ray.intersection.specular > 0) {
-			Vector vvv = (hitPoint - pos).normalize();	//from eye point V to hitpoint H, HV
-			if (compare(R.magnitude(), 1) != 0){
-				;
-				double d = (R.magnitude());
-			}
-			if (compare(vvv.magnitude(), 1) != 0){
-				;
-				double d = vvv.magnitude();
-			}
+			Vector vvv = (lightSrc - hitPoint).normalize();	//from eye point E to hitpoint H, EH
 			double spec = vvv.dot(R.normalize());
-
 			if (spec > 0) {
 				spec = ray.intersection.specular *((double)pow((double)spec, ray.intersection.shininess));
-				//ray.intersection.col.r = ray.intersection.col.r + spec;
-				//ray.intersection.col.g = ray.intersection.col.g + spec;
-				//ray.intersection.col.b = ray.intersection.col.b + spec;
-				ray.intersection.col = ray.intersection.col + spec;
+
+				//ray.intersection.col.r = ray.intersection.col.r + spec * ray.intersection.surfaceCol.r;
+				//ray.intersection.col.g = ray.intersection.col.g + spec * ray.intersection.surfaceCol.g;
+				//ray.intersection.col.b = ray.intersection.col.b + spec * ray.intersection.surfaceCol.b;
+
+				Color color(spec, spec, spec);
+
+				ray.intersection.col = ray.intersection.col + color;
 				ray.intersection.col = ray.intersection.col.clamp();
 			}
 		}
-
 	}
-
 }
 
 void rayTrace(Ray &ray, int depth){
@@ -1060,11 +1063,11 @@ int main(int argc, char **argv){
 	inputSceneParameters();
 
 	glutInit(&argc, argv);
-	glutInitWindowSize(800, 800);
+	glutInitWindowSize(500, 500);
 	glutInitWindowPosition(0, 0);
 	glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGB);	//Depth, Double buffer, RGB color
 
-	glutCreateWindow("Raytracing");
+	glutCreateWindow("Raytracing 1105003");
 
 	init();
 

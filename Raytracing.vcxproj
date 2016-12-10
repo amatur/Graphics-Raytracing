@@ -64,10 +64,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="raytracing.cpp" />
+    <Text Include="description.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="description.txt" />
+    <ClCompile Include="..\..\..\Tasnim%27s Files\WIP\RayTrace\main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
